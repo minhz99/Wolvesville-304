@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🐺 Wolvesville 30/4 — Ma Sói Online</title>
+    <meta name="description" content="Trò chơi Ma Sói online — Tự động quản trò, chơi ngay trên trình duyệt.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div id="app">
+        <!-- ============ SCREEN: JOIN ============ -->
+        <div id="screen-join" class="screen active">
+            <div class="join-container">
+                <div class="logo">
+                    <div class="logo-icon">🐺</div>
+                    <h1>Wolvesville<span class="logo-accent">30/4</span></h1>
+                    <p class="tagline">made by minh</p>
+                </div>
+                <div class="join-form">
+                    <div class="input-group">
+                        <input type="text" id="playerName" placeholder="Tên của bạn..." maxlength="20"
+                            autocomplete="off">
+                        <span class="input-icon">👤</span>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="roomId" placeholder="Mã phòng (hoặc để trống tạo mới)" maxlength="10"
+                            autocomplete="off">
+                        <span class="input-icon">🔑</span>
+                    </div>
+                    <button id="joinBtn" class="btn btn-primary btn-lg">
+                        <span>Vào Phòng</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5">
+                            <path d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="join-footer">
+                    <p>Hỗ trợ 5–16 người chơi</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ SCREEN: LOBBY ============ -->
+        <div id="screen-lobby" class="screen">
+            <header class="header">
+                <div class="header-left">
+                    <button id="leaveBtn" class="btn btn-ghost btn-sm">← Rời phòng</button>
+                </div>
+                <div class="header-center">
+                    <h2>Phòng: <span id="roomCode" class="accent">---</span></h2>
+                </div>
+                <div class="header-right">
+                    <span id="playerCount" class="badge">0/0</span>
+                </div>
+            </header>
+
+            <div class="lobby-content">
+                <!-- Player Grid -->
+                <div class="players-section">
+                    <h3 class="section-title">Người chơi</h3>
+                    <div id="playerGrid" class="player-grid"></div>
+                </div>
+
+                <!-- Role Config (Host only) -->
+                <div id="roleConfig" class="role-config hidden">
+                    <h3 class="section-title">Cấu hình vai trò <span class="badge badge-sm" id="roleTotal">0/0</span>
+                    </h3>
+                    <div id="roleList" class="role-list"></div>
+                </div>
+
+                <!-- Timer Config (Host only) -->
+                <div id="timerConfig" class="timer-config hidden">
+                    <h3 class="section-title">⏱️ Thời gian (giây)</h3>
+                    <div class="timer-grid">
+                        <div class="timer-field">
+                            <label>🌙 Đêm hành động</label>
+                            <input type="number" id="cfgNightAction" value="10" min="5" max="120">
+                        </div>
+                        <div class="timer-field">
+                            <label>🐺 Sói thảo luận</label>
+                            <input type="number" id="cfgWolfDiscussion" value="30" min="10" max="120">
+                        </div>
+                        <div class="timer-field">
+                            <label>☀️ Thảo luận &amp; Bỏ phiếu</label>
+                            <input type="number" id="cfgDiscussion" value="90" min="30" max="300">
+                        </div>
+                        <div class="timer-field">
+                            <label>🪢 Biện minh &amp; Xác nhận</label>
+                            <input type="number" id="cfgConfirmHang" value="15" min="5" max="60">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ready -->
+                <div class="lobby-actions">
+                    <button id="readyBtn" class="btn btn-secondary btn-lg">
+                        <span>✋ Sẵn sàng</span>
+                    </button>
+                    <p id="autoStartHint" class="auto-start-hint hidden">⏳ Đang chờ tất cả sẵn sàng + vai trò = số người
+                        chơi...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ SCREEN: GAME ============ -->
+        <div id="screen-game" class="screen">
+            <header class="header game-header">
+                <div class="header-left">
+                    <div id="phaseIndicator" class="phase-indicator">
+                        <span class="phase-icon">🌙</span>
+                        <span class="phase-text">Đêm 1</span>
+                    </div>
+                </div>
+                <div class="header-center">
+                    <span id="playerNameDisplay" class="player-name-badge"></span>
+                    <div id="gameTimer" class="timer">
+                        <svg class="timer-ring" viewBox="0 0 36 36">
+                            <circle class="timer-bg" cx="18" cy="18" r="16" fill="none" stroke-width="2" />
+                            <circle id="timerCircle" class="timer-progress" cx="18" cy="18" r="16" fill="none"
+                                stroke-width="2.5" stroke-dasharray="100" stroke-dashoffset="0" />
+                        </svg>
+                        <span id="timerText" class="timer-text">30</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <span id="aliveCount" class="badge">0 sống</span>
+                </div>
+            </header>
+
+            <div class="game-body">
+                <!-- Left: Players + Actions -->
+                <div class="game-main">
+                    <!-- Role Card -->
+                    <div id="roleCard" class="role-card">
+                        <div class="role-card-inner">
+                            <span class="role-emoji" id="roleEmoji">🐺</span>
+                            <div>
+                                <h3 id="roleName">Ma Sói</h3>
+                                <p id="roleDesc" class="role-desc">Mỗi đêm, chọn 1 người để cắn.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Area -->
+                    <div id="actionArea" class="action-area">
+                        <h3 id="actionTitle" class="action-title">Chọn mục tiêu</h3>
+                        <div id="targetGrid" class="target-grid"></div>
+                        <button id="confirmAction" class="btn btn-primary btn-lg" disabled>
+                            <span>Xác nhận</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right: Chat Panel -->
+                <div class="chat-panel" id="chatPanel">
+                    <div class="chat-toggle" onclick="toggleChat()">
+                        <span>💬 Tin nhắn</span>
+                        <span class="chat-toggle-icon">▼</span>
+                    </div>
+                    <div id="chatMessages" class="chat-messages">
+                        <!-- Chat messages injected here -->
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chatInput" placeholder="Nhập tin nhắn..." maxlength="200"
+                            autocomplete="off">
+                        <button id="chatSendBtn" class="btn btn-primary btn-sm">Gửi</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ SCREEN: RESULT ============ -->
+        <div id="screen-result" class="screen">
+            <div class="result-container">
+                <div id="resultIcon" class="result-icon">🏆</div>
+                <h2 id="resultTitle" class="result-title">Dân Làng thắng!</h2>
+                <p id="resultDesc" class="result-desc">Tất cả Ma Sói đã bị loại.</p>
+                <div id="resultRoles" class="result-roles"></div>
+                <button id="backToLobby" class="btn btn-primary btn-lg">
+                    <span>🔄 Chơi lại</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="toast hidden">
+            <span id="toastMsg"></span>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+    <script src="livekit.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

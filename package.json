@@ -1,0 +1,44 @@
+{
+  "name": "wolvesville-304",
+  "version": "1.0.0",
+  "description": "AI Agent project powered by Google Antigravity",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node server/index.ts",
+    "build": "echo \"No build script\""
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "google-antigravity"
+  ],
+  "author": "",
+  "license": "MIT",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/minhz99/Wolvesville-304.git"
+  },
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/minhz99/Wolvesville-304/issues"
+  },
+  "homepage": "https://github.com/minhz99/Wolvesville-304#readme",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "livekit-server-sdk": "^2.15.0",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.3.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
