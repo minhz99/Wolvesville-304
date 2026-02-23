@@ -4,7 +4,7 @@ import { CupidLinkSkill } from '../skills/CupidLinkSkill';
 
 export class Cupid extends Role {
     name = 'Cupid';
-    displayName = 'Thần Tình Yêu';
+    displayName = 'Cupid';
     description = 'Đêm đầu tiên, chọn 1 người để kết đôi. Cả 2 cùng chết nếu 1 người bị giết. Thắng khi cả 2 còn sống và chỉ còn 1 người khác. Biết vai trò của đối phương.';
     team = 'VILLAGER';
     actionType: 'independent' | 'reactive' | 'none' = 'independent';
