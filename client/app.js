@@ -1097,10 +1097,10 @@ socket.on('confirm_hang_request', (data) => {
     els.targetGrid.innerHTML = `
         <div style="display:flex;gap:12px;width:100%;justify-content:center;padding:16px">
             <button class="btn btn-danger btn-lg" style="flex:1" onclick="confirmHangVote(true)">
-                👍 Đồng ý
+                👍
             </button>
             <button class="btn btn-secondary btn-lg" style="flex:1" onclick="confirmHangVote(false)">
-                👎 Không
+                👎
             </button>
         </div>
     `;
