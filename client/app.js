@@ -106,7 +106,7 @@ const ROLES = {
     Villager: { emoji: '👤', name: 'Dân Làng', team: 'villager', desc: 'Suy luận và bỏ phiếu.' },
     Hunter: { emoji: '🏹', name: 'Thợ Săn', team: 'villager', desc: 'Bắn 1 người khi chết. Không bắn nếu bị 2 phép chết cùng lúc.' },
     Cupid: { emoji: '💕', name: 'Cupid', team: 'villager', desc: 'Kết đôi với 1 người. Thắng khi cả 2 sống + chỉ còn 1 người khác.' },
-    Jester: { emoji: '🃏', name: 'Thằng ngốc', team: 'solo', desc: 'Thắng khi bị vote treo cổ.' },
+    Jester: { emoji: '🃏', name: 'Thằng hề', team: 'solo', desc: 'Thắng khi bị vote treo cổ.' },
     Elder: { emoji: '🧓', name: 'Già Làng', team: 'villager', desc: 'Chống chịu 1 lần sói cắn.' },
     CursedWolf: { emoji: '🌑', name: 'Sói Nguyền', team: 'villager', desc: 'Ban đầu là Dân. Bị sói cắn → không chết, thành Sói đêm sau.' },
 };
@@ -451,14 +451,14 @@ function refreshDeafIcons() {
     document.querySelectorAll('.target-card').forEach(card => {
         const playerId = card.dataset.id;
         if (!playerId) return;
-        
+
         const isDeaf = isPlayerDeafToMe(playerId);
         card.classList.toggle('is-deaf', isDeaf);
-        
+
         // Update or add deaf icon in avatar
         const avatar = card.querySelector('.target-avatar');
         if (!avatar) return;
-        
+
         let deafIcon = avatar.querySelector('.deaf-icon');
         if (isDeaf && !deafIcon) {
             deafIcon = document.createElement('div');
@@ -512,9 +512,9 @@ function renderResult(winner, players) {
     const isJester = winner === 'JESTER';
     const isLover = winner === 'LOVER';
     els.resultIcon.textContent = isWolf ? '🐺' : (isJester ? '🃏' : (isLover ? '💕' : '🏆'));
-    els.resultTitle.textContent = isWolf ? 'Ma Sói thắng!' : (isJester ? 'Thằng ngốc thắng!' : (isLover ? 'Tình Nhân thắng!' : 'Dân Làng thắng!'));
+    els.resultTitle.textContent = isWolf ? 'Ma Sói thắng!' : (isJester ? 'Thằng hề thắng!' : (isLover ? 'Tình Nhân thắng!' : 'Dân Làng thắng!'));
     els.resultDesc.textContent = isWolf ? 'Sói đã thống trị ngôi làng.'
-        : (isJester ? 'Thằng ngốc đã lừa được dân làng!'
+        : (isJester ? 'Thằng hề đã lừa được dân làng!'
             : (isLover ? 'Tình Nhân đã sống sót cùng nhau!' : 'Tất cả Ma Sói đã bị loại.'));
 
     els.resultRoles.innerHTML = players.map(p => {
@@ -830,7 +830,7 @@ function renderDeadPlayerView() {
         const isAlive = p.alive !== false;
         const playerIndex = state.players.findIndex(pl => pl.id === p.id);
         const playerStyle = getPlayerColor(p.id, playerIndex);
-        
+
         // Người sống hiện deaf icon (họ không nghe được người chết)
         const isDeaf = isAlive && isPlayerDeafToMe(p.id);
         const deafIcon = isDeaf ? '<div class="deaf-icon" title="Không nghe được bạn">🔇</div>' : '';
@@ -851,7 +851,7 @@ function renderDeadPlayerView() {
 socket.on('role_visibility', (data) => {
     state.knownRoles = data.knownRoles || {};
     renderPlayers(); // Re-render with visible role tags
-    
+
     // Nếu đang ở giao diện chờ, re-render để hiện role mới
     if (state.currentActionMode === 'idle' && state.phase.includes('NIGHT')) {
         const allAlive = state.players.filter(p => p.alive !== false);
@@ -861,12 +861,12 @@ socket.on('role_visibility', (data) => {
 
 socket.on('voice_state', (data) => {
     state.voiceState = data;
-    
+
     // Update audio client
     if (window.audioClient) {
         window.audioClient.handleVoiceState(data);
     }
-    
+
     // Re-render target grid to show deaf icons
     refreshDeafIcons();
 });
@@ -896,7 +896,7 @@ socket.on('cupid_waiting', (data) => {
     // Reset action mode để Cupid có thể thấy giao diện chờ
     state.currentActionMode = 'idle';
     state.selectedTarget = null;
-    
+
     showNightWaitingUI(data, '💕 Đã chọn người yêu! Đang chờ...');
 });
 
