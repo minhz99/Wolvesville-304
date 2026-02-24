@@ -451,6 +451,7 @@ body {
     justify-content: center;
     font-size: 1.1rem;
     flex-shrink: 0;
+    position: relative;
 }
 
 .player-name {
