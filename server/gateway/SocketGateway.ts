@@ -41,18 +41,39 @@ export class SocketGateway {
 
     private setupListeners(): void {
         this.io.on('connection', (socket: Socket) => {
-            console.log(`[Socket] ++ ${socket.id}`);
 
-            socket.on('join_room', (data: { roomId: string; playerName: string }) => {
+            socket.on('join_room', async (data: { roomId: string; playerName: string }) => {
                 const { roomId, playerName } = data;
                 socket.join(roomId);
                 const room = this.roomManager.joinOrCreate(roomId, socket.id, playerName);
                 socket.emit('room_joined', { roomId, playerId: socket.id, isHost: room.hostId === socket.id });
                 socket.to(roomId).emit('player_joined', { playerId: socket.id, playerName });
                 this.broadcastPlayerList(roomId);
+
+                // Setup LiveKit cho sảnh chờ
+                const liveKitWsUrl = process.env.LIVEKIT_URL;
+                if (liveKitWsUrl) {
+                    try {
+                        const token = await this.liveKitService.generateToken(roomId, socket.id, playerName);
+                        socket.emit('voice_token', {
+                            token,
+                            wsUrl: liveKitWsUrl,
+                            playerId: socket.id
+                        });
+                        this.broadcastVoiceState(roomId, 'LOBBY');
+                    } catch (e) {
+                        console.error('Lỗi khi tạo token LiveKit:', e);
+                    }
+                }
             });
 
-            socket.on('leave_room', (data: { roomId: string }) => this.handlePlayerLeave(socket, data.roomId));
+            socket.on('leave_room', (data: { roomId: string }) => {
+                this.handlePlayerLeave(socket, data.roomId);
+                const room = this.roomManager.getRoom(data.roomId);
+                if (room && !room.engine) {
+                    this.broadcastVoiceState(data.roomId, 'LOBBY');
+                }
+            });
 
             socket.on('player_ready', (data: { roomId: string; ready: boolean }) => {
                 this.roomManager.setPlayerReady(data.roomId, socket.id, data.ready);
@@ -104,29 +125,11 @@ export class SocketGateway {
                     hasPoisonPotion: true,
                 });
 
-                // Generate LiveKit tokens for all players
-                const liveKitWsUrl = this.liveKitService.getWsUrl();
-                const tokenPromises = room.players.map(async (p) => {
-                    const token = await this.liveKitService.generateToken(data.roomId, p.id, p.name);
-                    return { playerId: p.id, token };
-                });
-                const playerTokens = await Promise.all(tokenPromises);
-
                 for (const p of room.players) {
                     const ps = this.io.sockets.sockets.get(p.id);
                     if (ps && p.roleName) {
                         ps.emit('game_started', { phase: 'NIGHT_INIT', round: 1, role: p.roleName, config });
                         ps.emit('role_visibility', { knownRoles: room.engine.buildRoleVisibility(p.id) });
-
-                        // Send LiveKit token to player
-                        const playerToken = playerTokens.find(pt => pt.playerId === p.id);
-                        if (playerToken?.token && liveKitWsUrl) {
-                            ps.emit('voice_token', {
-                                token: playerToken.token,
-                                wsUrl: liveKitWsUrl,
-                                playerId: p.id
-                            });
-                        }
                     }
                 }
                 this.sysChat(data.roomId, '🎮 Game bắt đầu! Đêm 1 đang đến...', '🌙');
@@ -974,6 +977,8 @@ export class SocketGateway {
 
             // Xoá engine để cho phép game mới bắt đầu trên cùng một room
             room.engine = undefined;
+            // Restore lobby chat
+            this.broadcastVoiceState(roomId, 'LOBBY');
 
             return true;
         }
@@ -1041,9 +1046,25 @@ export class SocketGateway {
      *   If partner IS a wolf, wolf talks with wolves, Cupid is deaf.
      * - DEAD: Dead players can speak/hear each other, and hear all alive players.
      */
-    private broadcastVoiceState(roomId: string, voicePhase: 'DAY' | 'NIGHT_WOLVES' | 'NIGHT_SILENT' | 'NIGHT_CUPID_PICK'): void {
+    private broadcastVoiceState(roomId: string, voicePhase: 'LOBBY' | 'DAY' | 'NIGHT_WOLVES' | 'NIGHT_SILENT' | 'NIGHT_CUPID_PICK'): void {
         const room = this.roomManager.getRoom(roomId);
-        if (!room?.engine) return;
+        if (!room) return;
+
+        if (voicePhase === 'LOBBY') {
+            const allPlayerIds = room.players.map(p => p.id);
+            for (const player of room.players) {
+                const voiceState: VoiceState = {
+                    canSpeak: true,
+                    canHear: allPlayerIds.filter(id => id !== player.id),
+                    deafTo: [],
+                    phase: 'LOBBY',
+                };
+                this.emitTo(player.id, 'voice_state', voiceState);
+            }
+            return;
+        }
+
+        if (!room.engine) return;
 
         const alivePlayers = room.players.filter(p => p.alive);
         const deadPlayers = room.players.filter(p => !p.alive);

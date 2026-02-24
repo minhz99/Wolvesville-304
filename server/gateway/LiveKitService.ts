@@ -12,8 +12,6 @@ export class LiveKitService {
 
         if (!this.apiKey || !this.apiSecret || !this.wsUrl) {
             console.warn('[LiveKitService] Missing LIVEKIT_API_KEY, LIVEKIT_API_SECRET, or LIVEKIT_URL environment variables');
-        } else {
-            console.log(`[LiveKitService] Initialized with URL: ${this.wsUrl}`);
         }
     }
 
@@ -58,7 +56,6 @@ export class LiveKitService {
         });
 
         const jwt = await token.toJwt();
-        console.log(`[LiveKitService] Generated token for ${participantName} (${participantId}) in room ${roomId}`);
         return jwt;
     }
 }

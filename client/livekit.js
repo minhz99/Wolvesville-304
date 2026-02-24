@@ -18,12 +18,12 @@ class AudioClient {
      */
     async connect(token, wsUrl, playerId) {
         this.playerId = playerId;
-        
+
         if (!token || !wsUrl) {
             console.warn('[AudioClient] No token or wsUrl provided, voice chat disabled');
             return;
         }
-        
+
         try {
             // Create LiveKit room instance
             this.room = new LivekitClient.Room({
@@ -35,20 +35,24 @@ class AudioClient {
                     autoGainControl: true,
                 }
             });
-            
+
             // Set up event listeners before connecting
             this.setupRoomListeners();
-            
+
             // Connect to LiveKit server
             await this.room.connect(wsUrl, token);
             this.localParticipant = this.room.localParticipant;
             this.isConnected = true;
-            
-            console.log(`[AudioClient] Connected to LiveKit for player ${playerId}`);
-            
-            // Enable microphone (will be controlled by voice state)
-            await this.localParticipant.setMicrophoneEnabled(true);
-            
+
+
+            // Apply voice state if received before connection, else default mic to off until updated
+            if (this.currentVoiceState) {
+                this.handleVoiceState(this.currentVoiceState);
+            } else {
+                await this.localParticipant.setMicrophoneEnabled(false);
+            }
+
+
         } catch (error) {
             console.error('[AudioClient] Failed to connect:', error);
             this.isConnected = false;
@@ -60,43 +64,44 @@ class AudioClient {
      */
     setupRoomListeners() {
         if (!this.room) return;
-        
+
         this.room.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
-            console.log(`[AudioClient] Participant joined: ${participant.identity}`);
         });
-        
+
         this.room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => {
-            console.log(`[AudioClient] Participant left: ${participant.identity}`);
         });
-        
+
         this.room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
             if (track.kind === LivekitClient.Track.Kind.Audio) {
-                console.log(`[AudioClient] Subscribed to audio from: ${participant.identity}`);
                 // Attach audio track to play
                 const audioElement = track.attach();
                 audioElement.id = `audio-${participant.identity}`;
+
+                // Set initial mute state based on current voice state
+                if (this.currentVoiceState && this.currentVoiceState.canHear) {
+                    audioElement.muted = !this.currentVoiceState.canHear.includes(participant.identity);
+                } else {
+                    audioElement.muted = true; // Default mute if no state
+                }
+
                 document.body.appendChild(audioElement);
             }
         });
-        
+
         this.room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
             if (track.kind === LivekitClient.Track.Kind.Audio) {
-                console.log(`[AudioClient] Unsubscribed from audio: ${participant.identity}`);
                 track.detach().forEach(el => el.remove());
             }
         });
-        
+
         this.room.on(LivekitClient.RoomEvent.Disconnected, (reason) => {
-            console.log(`[AudioClient] Disconnected: ${reason}`);
             this.isConnected = false;
         });
-        
+
         this.room.on(LivekitClient.RoomEvent.Reconnecting, () => {
-            console.log('[AudioClient] Reconnecting...');
         });
-        
+
         this.room.on(LivekitClient.RoomEvent.Reconnected, () => {
-            console.log('[AudioClient] Reconnected');
         });
     }
 
@@ -111,7 +116,6 @@ class AudioClient {
         this.localParticipant = null;
         this.isConnected = false;
         this.currentVoiceState = null;
-        console.log('[AudioClient] Disconnected');
     }
 
     /**
@@ -124,17 +128,16 @@ class AudioClient {
      */
     handleVoiceState(voiceState) {
         this.currentVoiceState = voiceState;
-        console.log(`[AudioClient] Voice state update: phase=${voiceState.phase}, canSpeak=${voiceState.canSpeak}`);
-        
+
         // Update local microphone state
         this.setLocalMicEnabled(voiceState.canSpeak);
-        
+
         // Update which remote participants we can hear
         this.updateRemoteAudioSubscriptions(voiceState.canHear);
-        
+
         // Dispatch event for UI to update deaf icons
-        window.dispatchEvent(new CustomEvent('voice_state_changed', { 
-            detail: voiceState 
+        window.dispatchEvent(new CustomEvent('voice_state_changed', {
+            detail: voiceState
         }));
     }
 
@@ -144,13 +147,11 @@ class AudioClient {
      */
     async setLocalMicEnabled(enabled) {
         if (!this.isConnected || !this.localParticipant) {
-            console.log(`[AudioClient] Mic ${enabled ? 'enabled' : 'disabled'} (not connected)`);
             return;
         }
-        
+
         try {
             await this.localParticipant.setMicrophoneEnabled(enabled);
-            console.log(`[AudioClient] Mic ${enabled ? 'enabled' : 'disabled'}`);
         } catch (error) {
             console.error('[AudioClient] Failed to set mic state:', error);
         }
@@ -162,16 +163,15 @@ class AudioClient {
      */
     updateRemoteAudioSubscriptions(canHearIds) {
         if (!this.isConnected || !this.room) {
-            console.log(`[AudioClient] Can hear: ${canHearIds?.length || 0} players (not connected)`);
             return;
         }
-        
+
         const canHearSet = new Set(canHearIds || []);
-        
+
         // Iterate through all remote participants and mute/unmute their audio
         for (const participant of this.room.remoteParticipants.values()) {
             const shouldHear = canHearSet.has(participant.identity);
-            
+
             for (const publication of participant.audioTrackPublications.values()) {
                 if (publication.track) {
                     // Mute/unmute the audio element
@@ -182,8 +182,7 @@ class AudioClient {
                 }
             }
         }
-        
-        console.log(`[AudioClient] Subscribing to ${canHearIds?.length || 0} audio streams`);
+
     }
 
     /**
@@ -220,14 +219,14 @@ class AudioClient {
     getPhase() {
         return this.currentVoiceState?.phase || 'UNKNOWN';
     }
-    
+
     /**
      * Get list of speaking participants (for UI indicator)
      * @returns {string[]} Array of participant IDs who are currently speaking
      */
     getSpeakingParticipants() {
         if (!this.room) return [];
-        
+
         const speaking = [];
         for (const participant of this.room.remoteParticipants.values()) {
             if (participant.isSpeaking) {

@@ -578,8 +578,9 @@ els.joinBtn.addEventListener('click', () => {
 });
 
 // Leave
-els.leaveBtn.addEventListener('click', () => {
+els.leaveBtn.addEventListener('click', async () => {
     socket.emit('leave_room', { roomId: state.roomId });
+    await window.audioClient?.disconnect();
     showScreen('join');
     state.roomId = null;
     state.isHost = false;
@@ -676,16 +677,23 @@ socket.on('room_joined', (data) => {
 
 socket.on('player_list', (data) => {
     state.players = data.players;
-    // Đồng bộ lại trạng thái \"sẵn sàng\" cục bộ của client theo server,
-    // đặc biệt quan trọng với chủ phòng khi server tự reset ready về false.
     const self = state.players.find(p => p.id === state.playerId);
     if (self) {
+        const wasHost = state.isHost;
         state.isHost = !!self.isHost;
         state.isReady = !!self.ready;
         const label = state.isReady ? '✅ Đã sẵn sàng' : '✋ Sẵn sàng';
         els.readyBtn.querySelector('span').textContent = label;
         els.readyBtn.classList.toggle('btn-primary', state.isReady);
         els.readyBtn.classList.toggle('btn-secondary', !state.isReady);
+
+        // Nếu vừa được trao quyền Host (do chủ cũ thoát), thì hiển thị bảng config
+        if (!wasHost && state.isHost) {
+            renderRoleConfig();
+        } else if (wasHost && !state.isHost) {
+            els.roleConfig.classList.add('hidden');
+            els.timerConfig.classList.add('hidden');
+        }
     }
 
     renderPlayers();
@@ -722,10 +730,8 @@ socket.on('game_started', (data) => {
 });
 
 socket.on('voice_token', async (data) => {
-    console.log('[App] Received voice token');
     try {
         await window.audioClient.connect(data.token, data.wsUrl, data.playerId);
-        console.log('[App] Voice chat connected successfully');
     } catch (error) {
         console.error('[App] Failed to connect voice chat:', error);
     }
@@ -971,8 +977,8 @@ function showNightWaitingUI(data, title) {
             const deafIcon = isDeaf ? '<div class="deaf-icon" title="Không nghe được">🔇</div>' : '';
             return `
                 <div class="target-card ${isSelf ? 'is-self' : ''} ${isDeaf ? 'is-deaf' : ''}" data-id="${p.id}" style="--player-color: ${playerStyle.color}; opacity: 0.7; pointer-events: none;">
-                    <div class="target-avatar" style="background: ${playerStyle.color}20; border: 2px solid ${playerStyle.color}">
-                        ${known?.emoji || playerStyle.icon}
+                    <div class="target-avatar" style="background-color: ${playerStyle.color}20; background-image: url('${playerStyle.icon}'); background-size: cover; background-position: center; border: 2px solid ${playerStyle.color}; text-shadow: 0 0 4px rgba(0,0,0,0.8);">
+                        ${known?.emoji || ''}
                         ${deafIcon}
                     </div>
                     <div class="target-name" style="color: ${playerStyle.color}">${escapeHtml(p.name)}${isSelf ? ' (Bạn)' : ''}</div>

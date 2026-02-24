@@ -513,13 +513,11 @@ body {
 /* Lobby Actions */
 .lobby-actions {
     display: flex;
-    gap: 12px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
     margin-top: auto;
     padding-bottom: 20px;
-}
-
-.lobby-actions .btn {
-    flex: 1;
 }
 
 .auto-start-hint {

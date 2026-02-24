@@ -19,5 +19,4 @@ const gateway = new SocketGateway(server);
 const PORT = process.env.PORT || 3521;
 
 server.listen(PORT, () => {
-    console.log(`🐺 Wolvesville MVP Server is running on http://localhost:${PORT}`);
 });
