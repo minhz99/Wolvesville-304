@@ -132,33 +132,15 @@ const PLAYER_COLORS = [
     '#78716c', // stone
 ];
 
-const PLAYER_ICONS = [
-    '🐶', // dog
-    '🐱', // cat
-    '🦊', // fox
-    '🐰', // rabbit
-    '🐻', // bear
-    '🐼', // panda
-    '🦁', // lion
-    '🐯', // tiger
-    '🐮', // cow
-    '🐸', // frog
-    '🐵', // monkey
-    '🐧', // penguin
-    '🦉', // owl
-    '🦄', // unicorn
-    '🐘', // elephant
-    '🐴'  // horse
-];
-
-// Lưu trữ màu và icon cho mỗi người chơi
 const playerColorMap = {};
 
 function getPlayerColor(playerId, playerIndex = 0) {
     if (!playerColorMap[playerId]) {
+        // Lấy màu ngẫu nhiên cho người chơi tham gia
+        const randomColor = PLAYER_COLORS[Math.floor(Math.random() * PLAYER_COLORS.length)];
         playerColorMap[playerId] = {
-            color: PLAYER_COLORS[playerIndex % PLAYER_COLORS.length],
-            icon: PLAYER_ICONS[playerIndex % PLAYER_ICONS.length]
+            color: randomColor,
+            icon: `assets/avatars/${randomColor.substring(1)}.png` // Remove '#' from color string for filename
         };
     }
     return playerColorMap[playerId];
@@ -284,7 +266,6 @@ function renderPlayers() {
     els.playerGrid.innerHTML = state.players.map((p, index) => {
         const classes = ['player-card', p.isHost ? 'is-host' : '', p.ready ? 'is-ready' : ''].filter(Boolean).join(' ');
         const playerStyle = getPlayerColor(p.id, index);
-        const avatar = p.isHost ? '👑' : playerStyle.icon;
         const hostTag = p.isHost ? '<div class="player-host-tag">Chủ phòng</div>' : '';
         const readyDot = p.ready ? ' ✅' : '';
 
@@ -295,9 +276,11 @@ function renderPlayers() {
             roleTag = `<span class="role-tag-visible ${known.team === 'WEREWOLF' ? 'wolf' : (known.team === 'SOLO' ? 'solo' : 'villager')}">${known.emoji} ${known.displayName}</span>`;
         }
 
+        const innerEmoji = known?.emoji || '';
+
         return `
-            <div class="${classes}" style="--player-color: ${playerStyle.color}">
-                <div class="player-avatar" style="background: ${playerStyle.color}20; border: 2px solid ${playerStyle.color}">${known?.emoji || avatar}</div>
+            <div class="${classes}" data-id="${p.id}" style="--player-color: ${playerStyle.color}">
+                <div class="player-avatar" style="background-color: ${playerStyle.color}20; background-image: url('${playerStyle.icon}'); background-size: cover; background-position: center; border: 2px solid ${playerStyle.color}; text-shadow: 0 0 4px rgba(0,0,0,0.8);">${innerEmoji}</div>
                 <div>
                     <div class="player-name" style="color: ${playerStyle.color}">${escapeHtml(p.name)}${readyDot}</div>
                     ${hostTag}
@@ -359,6 +342,9 @@ function getTimerConfig() {
     };
 }
 
+let autoStartTimer = null;
+let autoStartCountdown = 3;
+
 function checkAutoStart() {
     if (!state.isHost) return;
     const total = Object.values(roleConfig).reduce((a, b) => a + b, 0);
@@ -368,24 +354,48 @@ function checkAutoStart() {
 
     // Show/hide hint
     const matchRoles = total === state.players.length && state.players.length >= 5;
-    if (matchRoles && !allReady) {
-        els.autoStartHint.textContent = '⏳ Đang chờ tất cả sẵn sàng...';
-        els.autoStartHint.classList.remove('hidden');
-    } else if (!matchRoles) {
-        els.autoStartHint.textContent = `⚙️ Vai trò: ${total}/${state.players.length} (cần bằng nhau, tối thiểu 5)`;
-        els.autoStartHint.classList.remove('hidden');
-    } else {
-        els.autoStartHint.classList.add('hidden');
-    }
 
-    // Auto-start!
-    if (canStart) {
-        showToast('🎮 Đủ điều kiện — Game tự động bắt đầu!', 2000);
-        const timers = getTimerConfig();
-        socket.emit('timer_config', { roomId: state.roomId, timers });
-        setTimeout(() => {
-            socket.emit('start_game', { roomId: state.roomId, roles: roleConfig });
-        }, 500);
+    if (!canStart) {
+        // Hủy đếm ngược nếu có người bỏ ready hoặc thay đổi vai trò
+        if (autoStartTimer) {
+            clearInterval(autoStartTimer);
+            autoStartTimer = null;
+        }
+
+        if (matchRoles && !allReady) {
+            els.autoStartHint.textContent = '⏳ Đang chờ tất cả sẵn sàng...';
+            els.autoStartHint.classList.remove('hidden');
+        } else if (!matchRoles) {
+            els.autoStartHint.textContent = `⚙️ Vai trò: ${total}/${state.players.length} (cần bằng nhau, tối thiểu 5)`;
+            els.autoStartHint.classList.remove('hidden');
+        } else {
+            els.autoStartHint.classList.add('hidden');
+        }
+    } else if (canStart && !autoStartTimer) {
+        // Bắt đầu đếm ngược
+        autoStartCountdown = 3;
+        els.autoStartHint.classList.remove('hidden');
+
+        function tickCountdown() {
+            if (autoStartCountdown > 0) {
+                els.autoStartHint.textContent = `🚀 Trò chơi sẽ bắt đầu sau ${autoStartCountdown}...`;
+                autoStartCountdown--;
+            } else {
+                clearInterval(autoStartTimer);
+                autoStartTimer = null;
+                els.autoStartHint.textContent = 'Trò chơi đang bắt đầu...';
+
+                showToast('🎮 Đủ điều kiện — Game bắt đầu!', 2000);
+                const timers = getTimerConfig();
+                socket.emit('timer_config', { roomId: state.roomId, timers });
+                setTimeout(() => {
+                    socket.emit('start_game', { roomId: state.roomId, roles: roleConfig });
+                }, 500);
+            }
+        }
+
+        tickCountdown(); // Gọi ngay lần đầu
+        autoStartTimer = setInterval(tickCountdown, 1000);
     }
 }
 
@@ -428,8 +438,8 @@ function renderTargets(players, options = {}) {
 
         return `
             <div class="target-card ${deadClass} ${selfClass} ${isDeaf ? 'is-deaf' : ''}" data-id="${p.id}" ${onclickHandler} style="--player-color: ${playerStyle.color}">
-                <div class="target-avatar" style="background: ${playerStyle.color}20; border: 2px solid ${playerStyle.color}">
-                    ${known?.emoji || playerStyle.icon}
+                <div class="target-avatar" style="background-color: ${playerStyle.color}20; background-image: url('${playerStyle.icon}'); background-size: cover; background-position: center; border: 2px solid ${playerStyle.color}; text-shadow: 0 0 4px rgba(0,0,0,0.8);">
+                    ${known?.emoji || ''}
                     ${deafIcon}
                 </div>
                 <div class="target-name" style="color: ${playerStyle.color}">${escapeHtml(p.name)}${isSelf ? ' (Bạn)' : ''}</div>
@@ -602,9 +612,8 @@ function sendChat() {
     els.chatInput.value = '';
 }
 
-// Back to lobby — fully reset game state
+// Back to lobby — reset game state that changes between rounds
 els.backToLobby.addEventListener('click', () => {
-    // Reset all game state
     state.phase = 'WAITING';
     state.round = 0;
     state.role = null;
@@ -612,20 +621,31 @@ els.backToLobby.addEventListener('click', () => {
     state.currentActionMode = 'idle';
     state.isAlive = true;
     state.knownRoles = {};
-    state.config = null;
+    // state.config is NOT reset so UI configs are kept
+
     clearInterval(state.timer);
     state.timer = null;
-    state.timerSeconds = 10;
-    state.timerMax = 10;
+    // Don't reset state.timerMax etc, keep the settings intact
+
     state.isReady = false;
+
     // Reset chat
     els.chatMessages.innerHTML = '';
+
     // Reset ready button
     els.readyBtn.querySelector('span').textContent = '✋ Sẵn sàng';
     els.readyBtn.classList.remove('btn-primary');
     els.readyBtn.classList.add('btn-secondary');
+
+    // Xoá auto start countdown nếu đang chạy dở
+    if (autoStartTimer) {
+        clearInterval(autoStartTimer);
+        autoStartTimer = null;
+    }
+    els.autoStartHint.classList.add('hidden');
+
     showScreen('lobby');
-    renderRoleConfig();
+    // We don't call renderRoleConfig() here again so inputs are preserved.
 });
 
 // Input enter handling
@@ -726,9 +746,17 @@ socket.on('phase_change', (data) => {
         showDeadPlayerUI();
     }
 
+    const overlay = document.getElementById('phaseOverlay');
+    if (overlay) {
+        overlay.classList.remove('anim-to-night', 'anim-to-day');
+        // Trigger reflow to restart animation
+        void overlay.offsetWidth;
+    }
+
     if (data.phase.includes('NIGHT')) {
         phaseEl.classList.add('phase-night');
         phaseEl.innerHTML = `<span class="phase-icon">🌙</span><span class="phase-text">Đêm ${state.round}</span>`;
+        if (overlay) overlay.classList.add('anim-to-night');
         // Clear action area khi vào đêm (chỉ cho người sống)
         if (isPlayerAlive()) {
             els.actionTitle.textContent = '🌙 Đêm đang đến...';
@@ -746,6 +774,7 @@ socket.on('phase_change', (data) => {
     } else if (data.phase.includes('DAY')) {
         phaseEl.classList.add('phase-day');
         phaseEl.innerHTML = `<span class="phase-icon">☀️</span><span class="phase-text">Ngày ${state.round}</span>`;
+        if (overlay) overlay.classList.add('anim-to-day');
     }
 
     // Khi sang phase mới, nếu có timeLimit cho phase thảo luận ban ngày thì khởi động đếm ngược.
@@ -777,6 +806,17 @@ socket.on('player_died', (data) => {
 });
 
 socket.on('alive_update', (data) => {
+    // Determine who just died for death animation
+    const newlyDeadIds = [];
+    if (state.players && state.players.length > 0) {
+        data.players.forEach(p => {
+            const oldP = state.players.find(sp => sp.id === p.id);
+            if (oldP && oldP.alive === true && p.alive === false) {
+                newlyDeadIds.push(p.id);
+            }
+        });
+    }
+
     // Merge alive status into players
     if (data.players) {
         state.players = data.players;
@@ -796,6 +836,18 @@ socket.on('alive_update', (data) => {
         }
 
         renderPlayers();
+
+        // Apply death animation to newly dead players
+        newlyDeadIds.forEach(id => {
+            const pCard = els.playerGrid.querySelector(`.player-card[data-id="${id}"]`);
+            if (pCard) {
+                pCard.classList.add('anim-death');
+            }
+            const tCard = els.targetGrid.querySelector(`.target-card[data-id="${id}"]`);
+            if (tCard) {
+                tCard.classList.add('anim-death');
+            }
+        });
     }
 });
 
@@ -885,10 +937,11 @@ socket.on('lover_discussion', (data) => {
 
 // === NIGHT WAITING (vote UI preview while waiting for night to end) ===
 socket.on('night_waiting', (data) => {
-    // Only show if player has no active night action
-    if (state.currentActionMode !== 'idle') return;
+    // Reset action mode so previous active actions don't block waiting UI
+    state.currentActionMode = 'idle';
+    state.selectedTarget = null;
 
-    showNightWaitingUI(data, '🌙 Đang chờ... (vote khi ban ngày)');
+    showNightWaitingUI(data, '🌙 Đang chờ...');
 });
 
 // === CUPID WAITING (Cupid đã chọn xong, chờ các vai trò khác) ===
