@@ -3,8 +3,8 @@ import { GameContext, GameEvent, Player } from '../types/GameTypes';
 
 export class Jester extends Role {
     name = 'Jester';
-    displayName = 'Thằng ngốc';
-    description = 'Phe đơn độc. Không có kỹ năng đặc biệt. Thằng ngốc thắng nếu bị dân làng bỏ phiếu treo cổ — hãy khiến mọi người nghi ngờ bạn!';
+    displayName = 'Thằng hề';
+    description = 'Phe đơn độc. Không có kỹ năng đặc biệt. Thằng hề thắng nếu bị dân làng bỏ phiếu treo cổ — hãy khiến mọi người nghi ngờ bạn!';
     team = 'SOLO';
 
     // No night action — Jester wins by getting voted out during the day
