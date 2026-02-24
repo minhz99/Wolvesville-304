@@ -634,7 +634,7 @@ export class SocketGateway {
 
         const maxVotes = Math.max(0, ...Object.values(tally));
         const aliveCount = room.players.filter(p => p.alive).length;
-        const requiredVotes = Math.floor(aliveCount / 2) + 1; // Trên 50% = majority
+        const requiredVotes = Math.ceil(aliveCount / 2); // Đủ 50% là được (để lên giàn)
 
         if (maxVotes === 0) {
             this.sysChat(roomId, '🕊️ Không ai bị bỏ phiếu. Tha!', '🕊️');
@@ -706,9 +706,12 @@ export class SocketGateway {
         const noVotes = Object.values(ds.confirmVotes).filter(v => v === false).length;
         const accused = room.players.find(p => p.id === ds.accusedId);
 
-        if (yesVotes > noVotes) {
+        const aliveCount = room.players.filter(p => p.alive).length;
+        const requiredVotes = Math.ceil(aliveCount / 2); // 50% số người sống
+
+        if (yesVotes >= requiredVotes) {
             // Execute
-            this.sysChat(roomId, `☠️ ${accused?.name} bị treo cổ! (${yesVotes} thuận / ${noVotes} chống)`, '☠️');
+            this.sysChat(roomId, `☠️ ${accused?.name} bị treo cổ! (${yesVotes} thuận / cần ${requiredVotes})`, '☠️');
             this.io.to(roomId).emit('sound_effect', { sound: 'death' });
 
             // Special check for Jester (if not handled by WinEvaluator/EventBus)
@@ -749,7 +752,7 @@ export class SocketGateway {
             this.broadcastAlive(roomId);
             this.broadcastVisibility(roomId);
         } else {
-            this.sysChat(roomId, `🕊️ ${accused?.name} được tha! (${yesVotes} thuận / ${noVotes} chống)`, '🕊️');
+            this.sysChat(roomId, `🕊️ ${accused?.name} được tha! (${yesVotes} thuận / cần ${requiredVotes})`, '🕊️');
         }
 
         this.clearAllTimers(roomId, true);
@@ -1067,30 +1070,11 @@ export class SocketGateway {
             }
         }
 
-        // Use engine role.team (not gateway roleName) for accurate wolf detection
-        const alive = room.players.filter(p => p.alive);
-        let wolves = 0;
-        let others = 0;
-        for (const p of alive) {
-            const ep = room.engine.state.players.find(e => e.id === p.id);
-            if (ep?.role?.team === 'WEREWOLF') wolves++;
-            else others++;
-        }
-
-        let winner: string | null = null;
-        if (wolves === 0) winner = 'VILLAGER';
-        else if (wolves >= others) winner = 'WEREWOLF';
-
-        // Lover win check
-        const loverIds: string[] = [];
-        if (!winner && room.engine.state.loverIds) {
-            const { cupidId, partnerId } = room.engine.state.loverIds;
-            if (room.players.find(p => p.id === cupidId && p.alive)) loverIds.push(cupidId);
-            if (room.players.find(p => p.id === partnerId && p.alive)) loverIds.push(partnerId);
-        }
-        if (loverIds.length === 2 && room.players.filter(p => p.alive).length <= 3) {
-            winner = 'LOVER';
-        }
+        // Call evaluator from engine instead of hardcoding conditions
+        // Since we need GameContext, we can access it from engine.context if we exposed it, but Engine evaluates internally on resolveNight / etc and can be queried.
+        // Even simpler, WinEvaluator just takes the GameContext which we can get if we expose it, or we just let engine evaluate and tell us.
+        // For Gateway side checks (e.g., after standard hang), let's see if engine exposes evaluator:
+        const winner = room.engine.evaluator.evaluate((room.engine as any).context);
 
         if (winner) {
             // Khi game over, xoá các cờ sẵn sàng của toàn bộ người chơi để có logic chơi lại

@@ -10,6 +10,7 @@ import { GameContext, GameEvent, Player } from '../types/GameTypes';
  */
 export class EventBus {
     private queue: GameEvent[] = [];
+    private isProcessing: boolean = false;
 
     private processedCount: number = 0;
     private MAX_CHAIN = 100;
@@ -26,7 +27,10 @@ export class EventBus {
         // Pre-process: detect multi-death for Hunter
         this.detectMultiDeath();
 
-        this.processQueue();
+        // Prevent nested processing loops
+        if (!this.isProcessing) {
+            this.processQueue();
+        }
     }
 
     /**
@@ -57,17 +61,23 @@ export class EventBus {
     }
 
     private processQueue(): void {
+        if (this.isProcessing) return;
+        this.isProcessing = true;
         this.processedCount = 0;
 
-        while (this.queue.length > 0) {
-            if (this.processedCount++ > this.MAX_CHAIN) {
-                console.error('Max event chain limit reached! Possible infinite loop.');
-                this.queue = [];
-                break;
-            }
+        try {
+            while (this.queue.length > 0) {
+                if (this.processedCount++ > this.MAX_CHAIN) {
+                    console.error('Max event chain limit reached! Possible infinite loop.');
+                    this.queue = [];
+                    break;
+                }
 
-            const event = this.queue.shift()!;
-            this.dispatchEvent(event);
+                const event = this.queue.shift()!;
+                this.dispatchEvent(event);
+            }
+        } finally {
+            this.isProcessing = false;
         }
     }
 

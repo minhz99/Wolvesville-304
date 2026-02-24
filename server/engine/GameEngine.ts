@@ -30,7 +30,8 @@ export class GameEngine {
             get config() { return self.state.config; },
             getPlayer: (id: string) => self.state.players.find(p => p.id === id),
             getAlivePlayers: () => self.state.players.filter(p => p.alive),
-            getAllPlayers: () => self.state.players
+            getAllPlayers: () => self.state.players,
+            getLoverIds: () => self.state.loverIds
         };
 
         this.eventBus = new EventBus(this.context);

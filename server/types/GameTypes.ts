@@ -38,6 +38,7 @@ export interface GameContext {
   getPlayer(id: string): Player | undefined;
   getAlivePlayers(): Player[];
   getAllPlayers(): Player[];
+  getLoverIds(): { cupidId: string, partnerId: string } | undefined;
 }
 
 /**
