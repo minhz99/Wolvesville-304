@@ -469,6 +469,18 @@ body {
     text-transform: uppercase;
 }
 
+.player-card.is-offline {
+    opacity: 0.5;
+    filter: grayscale(0.5);
+}
+
+.player-offline-tag {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
 /* Role Config */
 .role-config {
     background: var(--bg-card);

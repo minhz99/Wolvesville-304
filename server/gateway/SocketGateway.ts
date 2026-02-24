@@ -42,23 +42,49 @@ export class SocketGateway {
     private setupListeners(): void {
         this.io.on('connection', (socket: Socket) => {
 
-            socket.on('join_room', async (data: { roomId: string; playerName: string }) => {
+            socket.on('join_room', async (data: { roomId: string; playerName: string; playerId?: string }) => {
                 const { roomId, playerName } = data;
+                const persistentPlayerId = data.playerId || socket.id;
+
                 socket.join(roomId);
-                const room = this.roomManager.joinOrCreate(roomId, socket.id, playerName);
-                socket.emit('room_joined', { roomId, playerId: socket.id, isHost: room.hostId === socket.id });
-                socket.to(roomId).emit('player_joined', { playerId: socket.id, playerName });
+                const room = this.roomManager.joinOrCreate(roomId, persistentPlayerId, playerName);
+
+                // Cập nhật mapping socketId mới cho playerId này
+                this.roomManager.updateSocketId(roomId, persistentPlayerId, socket.id);
+
+                socket.emit('room_joined', {
+                    roomId,
+                    playerId: persistentPlayerId,
+                    isHost: room.hostId === persistentPlayerId,
+                    roleConfig: room.roleConfig,
+                    timerConfig: room.timerConfig
+                });
+                socket.to(roomId).emit('player_joined', { playerId: persistentPlayerId, playerName });
                 this.broadcastPlayerList(roomId);
+
+                // Nếu đang trong game, gửi lại thông tin game cho người reconnect
+                if (room.engine) {
+                    const player = room.players.find(p => p.id === persistentPlayerId);
+                    if (player && player.roleName) {
+                        socket.emit('game_started', {
+                            phase: room.engine.state.phase,
+                            round: room.engine.state.round,
+                            role: player.roleName,
+                            config: { timers: room.timerConfig || DEFAULT_CONFIG.timers }
+                        });
+                        socket.emit('role_visibility', { knownRoles: room.engine.buildRoleVisibility(persistentPlayerId) });
+                    }
+                }
 
                 // Setup LiveKit cho sảnh chờ
                 const liveKitWsUrl = process.env.LIVEKIT_URL;
                 if (liveKitWsUrl) {
                     try {
-                        const token = await this.liveKitService.generateToken(roomId, socket.id, playerName);
+                        const token = await this.liveKitService.generateToken(roomId, persistentPlayerId, playerName);
                         socket.emit('voice_token', {
                             token,
                             wsUrl: liveKitWsUrl,
-                            playerId: socket.id
+                            playerId: persistentPlayerId
                         });
                         this.broadcastVoiceState(roomId, 'LOBBY');
                     } catch (e) {
@@ -68,7 +94,9 @@ export class SocketGateway {
             });
 
             socket.on('leave_room', (data: { roomId: string }) => {
-                this.handlePlayerLeave(socket, data.roomId);
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                const pid = mapping?.playerId || socket.id;
+                this.handlePlayerLeave(socket, data.roomId, pid);
                 const room = this.roomManager.getRoom(data.roomId);
                 if (room && !room.engine) {
                     this.broadcastVoiceState(data.roomId, 'LOBBY');
@@ -76,35 +104,40 @@ export class SocketGateway {
             });
 
             socket.on('player_ready', (data: { roomId: string; ready: boolean }) => {
-                this.roomManager.setPlayerReady(data.roomId, socket.id, data.ready);
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (!mapping) return;
+                this.roomManager.setPlayerReady(data.roomId, mapping.playerId, data.ready);
                 this.broadcastPlayerList(data.roomId);
             });
 
             // Host config → reset host ready
             socket.on('role_config', (data: { roomId: string; roles: Record<string, number> }) => {
                 const room = this.roomManager.getRoom(data.roomId);
-                if (room && room.hostId === socket.id) {
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (room && mapping && room.hostId === mapping.playerId) {
                     room.roleConfig = data.roles;
-                    this.roomManager.setPlayerReady(data.roomId, socket.id, false);
+                    this.roomManager.setPlayerReady(data.roomId, mapping.playerId, false);
                     this.broadcastPlayerList(data.roomId);
                 }
             });
 
             socket.on('timer_config', (data: { roomId: string; timers: Partial<GameConfig['timers']> }) => {
                 const room = this.roomManager.getRoom(data.roomId);
-                if (room && room.hostId === socket.id) {
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (room && mapping && room.hostId === mapping.playerId) {
                     room.timerConfig = { ...DEFAULT_CONFIG.timers, ...data.timers };
-                    this.roomManager.setPlayerReady(data.roomId, socket.id, false);
+                    this.roomManager.setPlayerReady(data.roomId, mapping.playerId, false);
                     this.broadcastPlayerList(data.roomId);
                 }
             });
 
             socket.on('start_game', async (data: { roomId: string; roles: Record<string, number> }) => {
                 const room = this.roomManager.getRoom(data.roomId);
-                if (!room || room.hostId !== socket.id) return;
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (!room || !mapping || room.hostId !== mapping.playerId) return;
 
                 // Require everyone (including host) to be ready before starting
-                const allReady = room.players.every(p => p.ready);
+                // const allReady = room.players.every(p => p.ready);
                 // Basic safety: minimum player count
                 if (room.players.length < 5) {
                     socket.emit('error', { message: 'Cần ít nhất 5 người chơi để bắt đầu.' });
@@ -126,11 +159,8 @@ export class SocketGateway {
                 });
 
                 for (const p of room.players) {
-                    const ps = this.io.sockets.sockets.get(p.id);
-                    if (ps && p.roleName) {
-                        ps.emit('game_started', { phase: 'NIGHT_INIT', round: 1, role: p.roleName, config });
-                        ps.emit('role_visibility', { knownRoles: room.engine.buildRoleVisibility(p.id) });
-                    }
+                    this.emitTo(p.id, 'game_started', { phase: 'NIGHT_INIT', round: 1, role: p.roleName, config }, data.roomId);
+                    this.emitTo(p.id, 'role_visibility', { knownRoles: room.engine.buildRoleVisibility(p.id) }, data.roomId);
                 }
                 this.sysChat(data.roomId, '🎮 Game bắt đầu! Đêm 1 đang đến...', '🌙');
                 this.io.to(data.roomId).emit('sound_effect', { sound: 'night_start' });
@@ -138,45 +168,66 @@ export class SocketGateway {
             });
 
             // Night actions
-            socket.on('night_action', (data: { roomId: string; input: any }) => this.handleNightAction(data.roomId, socket.id, data.input));
-            socket.on('wolf_vote', (data: { roomId: string; targetId: string }) => this.handleWolfVote(data.roomId, socket.id, data.targetId));
-            socket.on('witch_action', (data: { roomId: string; action: string; targetId?: string }) => this.handleWitchAction(data.roomId, socket.id, data));
+            socket.on('night_action', (data: { roomId: string; input: any }) => {
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (mapping) this.handleNightAction(data.roomId, mapping.playerId, data.input);
+            });
+            socket.on('wolf_vote', (data: { roomId: string; targetId: string }) => {
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (mapping) this.handleWolfVote(data.roomId, mapping.playerId, data.targetId);
+            });
+            socket.on('witch_action', (data: { roomId: string; action: string; targetId?: string }) => {
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (mapping) this.handleWitchAction(data.roomId, mapping.playerId, data);
+            });
 
             // Day actions
-            socket.on('day_vote', (data: { roomId: string; targetId: string }) => this.handleDayVote(data.roomId, socket.id, data.targetId));
-            socket.on('confirm_hang', (data: { roomId: string; vote: boolean }) => this.handleConfirmHang(data.roomId, socket.id, data.vote));
-            socket.on('hunter_revenge', (data: { roomId: string; targetId: string }) => this.handleHunterRevenge(data.roomId, socket.id, data.targetId));
+            socket.on('day_vote', (data: { roomId: string; targetId: string }) => {
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (mapping) this.handleDayVote(data.roomId, mapping.playerId, data.targetId);
+            });
+            socket.on('confirm_hang', (data: { roomId: string; vote: boolean }) => {
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (mapping) this.handleConfirmHang(data.roomId, mapping.playerId, data.vote);
+            });
+            socket.on('hunter_revenge', (data: { roomId: string; targetId: string }) => {
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (mapping) this.handleHunterRevenge(data.roomId, mapping.playerId, data.targetId);
+            });
 
             // Chat (always allowed for everyone)
             socket.on('player_chat', (data: { roomId: string; message: string }) => {
                 const room = this.roomManager.getRoom(data.roomId);
-                if (!room) return;
-                const player = room.players.find(p => p.id === socket.id);
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (!room || !mapping) return;
+                const player = room.players.find(p => p.id === mapping.playerId);
                 if (!player) return;
                 // Dead players cannot send public chat — they are observers
                 if (!player.alive && room.engine) {
-                    this.pvtChat(data.roomId, socket.id, '👻 Bạn đã chết, không thể chat.', '👻');
+                    this.pvtChat(data.roomId, mapping.playerId, '👻 Bạn đã chết, không thể chat.', '👻');
                     return;
                 }
                 this.io.to(data.roomId).emit('chat_message', {
-                    type: 'player', content: data.message, sender: player.name, senderId: socket.id, icon: '💬',
+                    type: 'player', content: data.message, sender: player.name, senderId: mapping.playerId, icon: '💬',
                 });
             });
 
             // Heartbeat to keep room and player alive in memory
             socket.on('ping_heartbeat', () => {
-                this.roomManager.heartbeat(socket.id);
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (mapping) this.roomManager.heartbeat(mapping.playerId);
             });
 
             // Manual voice controls (Mic/Speaker toggle)
             socket.on('toggle_mic', (data: { roomId: string; isMuted: boolean }) => {
                 const room = this.roomManager.getRoom(data.roomId);
-                if (!room) return;
-                const player = room.players.find(p => p.id === socket.id);
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (!room || !mapping) return;
+                const player = room.players.find(p => p.id === mapping.playerId);
                 if (player) {
                     player.isMicMuted = data.isMuted;
                     this.io.to(data.roomId).emit('player_voice_state_changed', {
-                        playerId: socket.id,
+                        playerId: mapping.playerId,
                         isMicMuted: player.isMicMuted,
                         isSpeakerMuted: player.isSpeakerMuted
                     });
@@ -185,12 +236,13 @@ export class SocketGateway {
 
             socket.on('toggle_speaker', (data: { roomId: string; isMuted: boolean }) => {
                 const room = this.roomManager.getRoom(data.roomId);
-                if (!room) return;
-                const player = room.players.find(p => p.id === socket.id);
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (!room || !mapping) return;
+                const player = room.players.find(p => p.id === mapping.playerId);
                 if (player) {
                     player.isSpeakerMuted = data.isMuted;
                     this.io.to(data.roomId).emit('player_voice_state_changed', {
-                        playerId: socket.id,
+                        playerId: mapping.playerId,
                         isMicMuted: player.isMicMuted,
                         isSpeakerMuted: player.isSpeakerMuted
                     });
@@ -198,8 +250,12 @@ export class SocketGateway {
             });
 
             socket.on('disconnect', () => {
-                const roomId = this.roomManager.getPlayerRoom(socket.id);
-                if (roomId) this.handlePlayerLeave(socket, roomId);
+                const mapping = this.roomManager.getSocketMapping(socket.id);
+                if (mapping) {
+                    // Đánh dấu offline nhưng không xoá khỏi phòng (để reload có thể vào lại)
+                    this.roomManager.setPlayerOnline(mapping.roomId, mapping.playerId, false);
+                    this.broadcastPlayerList(mapping.roomId);
+                }
             });
         });
     }
@@ -1042,8 +1098,14 @@ export class SocketGateway {
         return false;
     }
 
-    private emitTo(pid: string, event: string, data: any): void {
-        this.io.sockets.sockets.get(pid)?.emit(event, data);
+    private emitTo(pid: string, event: string, data: any, roomId?: string): void {
+        let socketId = pid;
+        if (roomId) {
+            const room = this.roomManager.getRoom(roomId);
+            const player = room?.players.find(p => p.id === pid);
+            if (player) socketId = player.socketId;
+        }
+        this.io.sockets.sockets.get(socketId)?.emit(event, data);
     }
     /** Send non-active alive players a night_waiting event so they see a vote UI preview */
     private emitNightWaiting(roomId: string, activeIds: string[]): void {
@@ -1056,11 +1118,11 @@ export class SocketGateway {
             this.emitTo(p.id, 'night_waiting', { players: allAlive });
         }
     }
-    private handlePlayerLeave(socket: Socket, roomId: string): void {
-        const name = this.roomManager.getPlayerName(roomId, socket.id);
-        this.roomManager.leaveRoom(roomId, socket.id);
+    private handlePlayerLeave(socket: Socket, roomId: string, pid: string): void {
+        const name = this.roomManager.getPlayerName(roomId, pid);
+        this.roomManager.leaveRoom(roomId, pid);
         socket.leave(roomId);
-        this.io.to(roomId).emit('player_left', { playerId: socket.id, playerName: name || 'Ai đó' });
+        this.io.to(roomId).emit('player_left', { playerId: pid, playerName: name || 'Ai đó' });
         this.broadcastPlayerList(roomId);
 
         // If the room just got destroyed because the last player left, aggressive sweep timers
@@ -1080,9 +1142,12 @@ export class SocketGateway {
                 isHost: p.id === room.hostId,
                 ready: p.ready,
                 alive: p.alive,
+                online: p.online,
                 isMicMuted: p.isMicMuted,
                 isSpeakerMuted: p.isSpeakerMuted
             })),
+            roleConfig: room.roleConfig,
+            timerConfig: room.timerConfig,
         });
     }
     private broadcastAlive(roomId: string): void {

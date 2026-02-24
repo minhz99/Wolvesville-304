@@ -13,7 +13,8 @@ import { CursedWolf } from '../roles/CursedWolf';
 import { Role } from '../roles/Role';
 
 export interface RoomPlayer {
-    id: string;
+    id: string; // Persistent ID (e.g. from localStorage)
+    socketId: string; // Current transient socket ID
     name: string;
     ready: boolean;
     alive: boolean;
@@ -21,6 +22,7 @@ export interface RoomPlayer {
     lastSeen: number; // For garbage collection
     isMicMuted: boolean;
     isSpeakerMuted: boolean;
+    online: boolean;
 }
 
 export interface RoomData {
@@ -50,6 +52,7 @@ const ROLE_FACTORY: Record<string, () => Role> = {
 export class RoomManager {
     private rooms: Map<string, RoomData> = new Map();
     private playerRooms: Map<string, string> = new Map();
+    private socketToRoom: Map<string, { roomId: string, playerId: string }> = new Map();
     private gcInterval: NodeJS.Timeout | null = null;
 
     constructor() {
@@ -102,6 +105,26 @@ export class RoomManager {
         }, 30 * 60 * 1000); // 30 mins
     }
 
+    public updateSocketId(roomId: string, playerId: string, socketId: string): void {
+        const room = this.rooms.get(roomId);
+        if (!room) return;
+        const player = room.players.find(p => p.id === playerId);
+        if (player) {
+            // Clean up old mapping if any
+            if (player.socketId) this.socketToRoom.delete(player.socketId);
+
+            player.socketId = socketId;
+            player.lastSeen = Date.now();
+            player.online = true;
+            this.socketToRoom.set(socketId, { roomId, playerId });
+        }
+        room.lastActivity = Date.now();
+    }
+
+    public getSocketMapping(socketId: string) {
+        return this.socketToRoom.get(socketId);
+    }
+
     public joinOrCreate(roomId: string, playerId: string, playerName: string): RoomData {
         let room = this.rooms.get(roomId);
 
@@ -128,24 +151,35 @@ export class RoomManager {
         if (!existingPlayer) {
             room.players.push({
                 id: playerId,
+                socketId: playerId, // Fallback if not specified otherwise
                 name: playerName,
                 ready: false,
                 alive: true,
                 lastSeen: Date.now(),
                 isMicMuted: false,
                 isSpeakerMuted: false,
+                online: true,
             });
         } else {
             existingPlayer.lastSeen = Date.now();
+            existingPlayer.online = true;
+            // Re-joining player might have a new name or just updating lastSeen
+            if (playerName) existingPlayer.name = playerName;
         }
 
         room.lastActivity = Date.now();
         this.playerRooms.set(playerId, roomId);
+        // We handle socketToRoom mapping in updateSocketId call right after joinOrCreate
         return room;
     }
 
     public getRoom(roomId: string): RoomData | undefined {
         return this.rooms.get(roomId);
+    }
+
+    public getPlayerIdBySocketId(roomId: string, socketId: string): string | undefined {
+        const room = this.rooms.get(roomId);
+        return room?.players.find(p => p.socketId === socketId)?.id;
     }
 
     public getPlayerRoom(playerId: string): string | undefined {
@@ -155,6 +189,17 @@ export class RoomManager {
     public getPlayerName(roomId: string, playerId: string): string | undefined {
         const room = this.rooms.get(roomId);
         return room?.players.find(p => p.id === playerId)?.name;
+    }
+
+    public setPlayerOnline(roomId: string, playerId: string, online: boolean): void {
+        const room = this.rooms.get(roomId);
+        if (!room) return;
+        const player = room.players.find(p => p.id === playerId);
+        if (player) {
+            player.online = online;
+            player.lastSeen = Date.now();
+        }
+        room.lastActivity = Date.now();
     }
 
     public setPlayerReady(roomId: string, playerId: string, ready: boolean): void {
@@ -171,6 +216,11 @@ export class RoomManager {
     public leaveRoom(roomId: string, playerId: string): void {
         const room = this.rooms.get(roomId);
         if (!room) return;
+
+        const player = room.players.find(p => p.id === playerId);
+        if (player) {
+            if (player.socketId) this.socketToRoom.delete(player.socketId);
+        }
 
         room.players = room.players.filter(p => p.id !== playerId);
         this.playerRooms.delete(playerId);

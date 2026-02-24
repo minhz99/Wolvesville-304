@@ -37,6 +37,31 @@ function isPlayerAlive() {
     return state.isAlive;
 }
 
+// ---- Storage ----
+const Storage = {
+    saveSession(roomId, playerName, playerId) {
+        localStorage.setItem('wv_room', roomId);
+        localStorage.setItem('wv_name', playerName);
+        localStorage.setItem('wv_pid', playerId);
+    },
+    clearSession() {
+        localStorage.removeItem('wv_room');
+        // Keep wv_name and wv_pid for convenience
+    },
+    getSession() {
+        return {
+            roomId: localStorage.getItem('wv_room'),
+            playerName: localStorage.getItem('wv_name'),
+            playerId: localStorage.getItem('wv_pid')
+        };
+    }
+};
+
+// Khởi tạo playerId bền vững
+state.playerId = localStorage.getItem('wv_pid') || Math.random().toString(36).substring(2, 10).toUpperCase();
+localStorage.setItem('wv_pid', state.playerId);
+
+
 // ---- DOM References ----
 const $ = (id) => document.getElementById(id);
 
@@ -271,9 +296,16 @@ function autoRandomTarget() {
 // ---- Render Functions ----
 function renderPlayers() {
     els.playerGrid.innerHTML = state.players.map((p, index) => {
-        const classes = ['player-card', p.isHost ? 'is-host' : '', p.ready ? 'is-ready' : ''].filter(Boolean).join(' ');
+        const classes = [
+            'player-card',
+            p.isHost ? 'is-host' : '',
+            p.ready ? 'is-ready' : '',
+            p.online === false ? 'is-offline' : ''
+        ].filter(Boolean).join(' ');
+
         const playerStyle = getPlayerColor(p.id, index);
         const hostTag = p.isHost ? '<div class="player-host-tag">Chủ phòng</div>' : '';
+        const offlineTag = p.online === false ? '<div class="player-offline-tag">Mất kết nối</div>' : '';
         const readyDot = p.ready ? ' ✅' : '';
 
         // Role visibility tag
@@ -299,6 +331,7 @@ function renderPlayers() {
                 <div>
                     <div class="player-name" style="color: ${playerStyle.color}">${escapeHtml(p.name)}${readyDot}</div>
                     ${hostTag}
+                    ${offlineTag}
                     ${roleTag}
                 </div>
             </div>
@@ -326,11 +359,15 @@ function renderRoleConfig() {
             </div>
             <div class="role-counter">
                 <button onclick="changeRoleCount('${key}', -1)">−</button>
-                <span class="role-count" id="count-${key}">0</span>
+                <span class="role-count" id="count-${key}">${roleConfig[key] || 0}</span>
                 <button onclick="changeRoleCount('${key}', 1)">+</button>
             </div>
         </div>
     `).join('');
+
+    // Cập nhật tổng số lượng vai trò
+    const total = Object.values(roleConfig).reduce((a, b) => a + b, 0);
+    els.roleTotal.textContent = `${total}/${state.players.length}`;
 }
 
 const roleConfig = {
@@ -600,13 +637,22 @@ els.joinBtn.addEventListener('click', () => {
         return;
     }
     state.playerName = name;
-    state.roomId = els.roomId.value.trim() || generateRoomId();
-    socket.emit('join_room', { roomId: state.roomId, playerName: state.playerName });
+    state.roomId = els.roomId.value.trim().toUpperCase() || generateRoomId();
+
+    // Lưu session để reload không mất
+    Storage.saveSession(state.roomId, state.playerName, state.playerId);
+
+    socket.emit('join_room', {
+        roomId: state.roomId,
+        playerName: state.playerName,
+        playerId: state.playerId
+    });
 });
 
 // Leave
 els.leaveBtn.addEventListener('click', async () => {
     socket.emit('leave_room', { roomId: state.roomId });
+    Storage.clearSession();
     try {
         if (window.audioClient) {
             await window.audioClient.disconnect();
@@ -697,7 +743,7 @@ document.querySelectorAll('.timer-field input').forEach(input => {
 // ============ SOCKET EVENTS ============
 
 socket.on('connect', () => {
-    state.playerId = socket.id;
+    console.log('Connected to server, Socket ID:', socket.id);
 
     // Send heartbeat to prevent RoomManager from GC'ing this socket
     if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
@@ -718,6 +764,21 @@ socket.on('room_joined', (data) => {
     state.playerId = data.playerId;
     state.isHost = data.isHost;
     els.roomCode.textContent = data.roomId;
+
+    // Lưu session để reload có thể tự vào lại
+    Storage.saveSession(data.roomId, state.playerName, data.playerId);
+
+    // Đồng bộ cấu hình từ server (nếu có)
+    if (data.roleConfig) {
+        Object.assign(roleConfig, data.roleConfig);
+    }
+    if (data.timerConfig) {
+        if ($('cfgNightAction')) $('cfgNightAction').value = data.timerConfig.nightAction || 10;
+        if ($('cfgWolfDiscussion')) $('cfgWolfDiscussion').value = data.timerConfig.wolfDiscussion || 30;
+        if ($('cfgDiscussion')) $('cfgDiscussion').value = data.timerConfig.dayDiscussion || 120;
+        if ($('cfgConfirmHang')) $('cfgConfirmHang').value = data.timerConfig.confirmHang || 15;
+    }
+
     showScreen('lobby');
     renderRoleConfig();
     showToast(`Đã vào phòng ${data.roomId}`);
@@ -725,6 +786,17 @@ socket.on('room_joined', (data) => {
 
 socket.on('player_list', (data) => {
     state.players = data.players;
+
+    // Đồng bộ cấu hình từ server (đặc biệt quan trọng khi đổi Host)
+    if (data.roleConfig) {
+        Object.assign(roleConfig, data.roleConfig);
+    }
+    if (data.timerConfig) {
+        if ($('cfgNightAction')) $('cfgNightAction').value = data.timerConfig.nightAction || 10;
+        if ($('cfgWolfDiscussion')) $('cfgWolfDiscussion').value = data.timerConfig.wolfDiscussion || 30;
+        if ($('cfgDiscussion')) $('cfgDiscussion').value = data.timerConfig.dayDiscussion || 120;
+        if ($('cfgConfirmHang')) $('cfgConfirmHang').value = data.timerConfig.confirmHang || 15;
+    }
     const self = state.players.find(p => p.id === state.playerId);
     if (self) {
         const wasHost = state.isHost;
@@ -745,6 +817,13 @@ socket.on('player_list', (data) => {
     }
 
     renderPlayers();
+
+    // Cập nhật nhãn tổng số lượng vai trò nếu là Host
+    if (state.isHost) {
+        const totalCount = Object.values(roleConfig).reduce((a, b) => a + b, 0);
+        els.roleTotal.textContent = `${totalCount}/${state.players.length}`;
+    }
+
     checkAutoStart();
 });
 
@@ -1331,5 +1410,28 @@ function toggleSpeakerBtn(e) {
 [els.btnToggleSpeaker, els.btnToggleSpeakerGame].forEach(b => b?.addEventListener('click', toggleSpeakerBtn));
 
 // ---- Init ----
-showScreen('join');
-els.playerName.focus();
+(function init() {
+    showScreen('join');
+    els.playerName.focus();
+
+    // Thử khôi phục session cũ nếu có
+    const session = Storage.getSession();
+    if (session.playerName) {
+        els.playerName.value = session.playerName;
+        state.playerName = session.playerName;
+    }
+    if (session.roomId) {
+        els.roomId.value = session.roomId;
+        state.roomId = session.roomId;
+
+        // Nếu đã có đủ info, tự động join sau một khoảng ngắn để Socket sẵn sàng
+        setTimeout(() => {
+            console.log('🔄 Đang tự động kết nối lại...');
+            socket.emit('join_room', {
+                roomId: session.roomId,
+                playerName: session.playerName,
+                playerId: state.playerId
+            });
+        }, 500);
+    }
+})();
