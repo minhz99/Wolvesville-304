@@ -25,6 +25,11 @@ class AudioClient {
         }
 
         try {
+            // Ensure any existing connection is completely shut down first
+            if (this.room) {
+                await this.disconnect();
+            }
+
             // Create LiveKit room instance
             this.room = new LivekitClient.Room({
                 adaptiveStream: true,
@@ -77,12 +82,14 @@ class AudioClient {
                 const audioElement = track.attach();
                 audioElement.id = `audio-${participant.identity}`;
 
-                // Set initial mute state based on current voice state
-                if (this.currentVoiceState && this.currentVoiceState.canHear) {
-                    audioElement.muted = !this.currentVoiceState.canHear.includes(participant.identity);
-                } else {
-                    audioElement.muted = true; // Default mute if no state
+                // Set initial mute state based on current voice state and manual overrides
+                let shouldBeMuted = true;
+                if (window.isAppSpeakerMuted) {
+                    shouldBeMuted = true;
+                } else if (this.currentVoiceState && this.currentVoiceState.canHear) {
+                    shouldBeMuted = !this.currentVoiceState.canHear.includes(participant.identity);
                 }
+                audioElement.muted = shouldBeMuted;
 
                 document.body.appendChild(audioElement);
             }
@@ -109,9 +116,21 @@ class AudioClient {
      * Disconnect from audio room
      */
     async disconnect() {
+        // Optional safety: Stop microphone explicitly
+        await this.setLocalMicEnabled(false);
+
         if (this.room) {
-            await this.room.disconnect();
+            try {
+                // Pass true to stop local tracks and release mic
+                await this.room.disconnect(true);
+            } catch (e) {
+                console.warn('[AudioClient] Error during disconnect', e);
+            }
         }
+
+        // Remove any remaining audio elements attached
+        document.querySelectorAll('audio[id^="audio-"]').forEach(el => el.remove());
+
         this.room = null;
         this.localParticipant = null;
         this.isConnected = false;
@@ -177,7 +196,7 @@ class AudioClient {
                     // Mute/unmute the audio element
                     const audioElements = publication.track.attachedElements;
                     audioElements.forEach(el => {
-                        el.muted = !shouldHear;
+                        el.muted = window.isAppSpeakerMuted ? true : !shouldHear;
                     });
                 }
             }

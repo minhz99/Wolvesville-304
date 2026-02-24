@@ -18,6 +18,9 @@ export interface RoomPlayer {
     ready: boolean;
     alive: boolean;
     roleName?: string;
+    lastSeen: number; // For garbage collection
+    isMicMuted: boolean;
+    isSpeakerMuted: boolean;
 }
 
 export interface RoomData {
@@ -27,6 +30,7 @@ export interface RoomData {
     engine: GameEngine | null;
     roleConfig: Record<string, number>;
     timerConfig?: GameConfig['timers'];
+    lastActivity: number; // For garbage collection
 }
 
 // Role factory map
@@ -46,6 +50,57 @@ const ROLE_FACTORY: Record<string, () => Role> = {
 export class RoomManager {
     private rooms: Map<string, RoomData> = new Map();
     private playerRooms: Map<string, string> = new Map();
+    private gcInterval: NodeJS.Timeout | null = null;
+
+    constructor() {
+        this.startGarbageCollection();
+    }
+
+    private startGarbageCollection() {
+        if (this.gcInterval) clearInterval(this.gcInterval);
+
+        // Run GC every 30 minutes
+        this.gcInterval = setInterval(() => {
+            const now = Date.now();
+            const ROOM_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
+            const PLAYER_TIMEOUT = 30 * 60 * 1000;   // 30 minutes
+
+            for (const [roomId, room] of this.rooms.entries()) {
+                // Delete stale rooms entirely
+                if (now - room.lastActivity > ROOM_TIMEOUT) {
+                    // Force cleanup
+                    room.players.forEach(p => this.playerRooms.delete(p.id));
+                    this.rooms.delete(roomId);
+                    console.log(`[GC] Deleted stale room: ${roomId}`);
+                    continue;
+                }
+
+                // Or remove individual stale players
+                const originalCount = room.players.length;
+                room.players = room.players.filter(p => {
+                    const keep = now - p.lastSeen <= PLAYER_TIMEOUT;
+                    if (!keep) {
+                        this.playerRooms.delete(p.id);
+                        console.log(`[GC] Removed stale player ${p.id} from room ${roomId}`);
+                    }
+                    return keep;
+                });
+
+                // Update host if host got removed
+                if (room.players.length !== originalCount && room.players.length > 0) {
+                    if (!room.players.find(p => p.id === room.hostId)) {
+                        room.hostId = room.players[0].id;
+                    }
+                }
+
+                // If empty -> destroy
+                if (room.players.length === 0) {
+                    this.rooms.delete(roomId);
+                    console.log(`[GC] Deleted empty room: ${roomId}`);
+                }
+            }
+        }, 30 * 60 * 1000); // 30 mins
+    }
 
     public joinOrCreate(roomId: string, playerId: string, playerName: string): RoomData {
         let room = this.rooms.get(roomId);
@@ -56,21 +111,35 @@ export class RoomManager {
                 hostId: playerId, // First player is host
                 players: [],
                 engine: null,
-                roleConfig: {},
+                roleConfig: {
+                    Werewolf: 1,
+                    Witch: 1,
+                    Guard: 1,
+                    Villager: 1,
+                    Seer: 1
+                },
+                lastActivity: Date.now()
             };
             this.rooms.set(roomId, room);
         }
 
         // Prevent duplicate joins
-        if (!room.players.find(p => p.id === playerId)) {
+        const existingPlayer = room.players.find(p => p.id === playerId);
+        if (!existingPlayer) {
             room.players.push({
                 id: playerId,
                 name: playerName,
                 ready: false,
                 alive: true,
+                lastSeen: Date.now(),
+                isMicMuted: false,
+                isSpeakerMuted: false,
             });
+        } else {
+            existingPlayer.lastSeen = Date.now();
         }
 
+        room.lastActivity = Date.now();
         this.playerRooms.set(playerId, roomId);
         return room;
     }
@@ -92,7 +161,11 @@ export class RoomManager {
         const room = this.rooms.get(roomId);
         if (!room) return;
         const player = room.players.find(p => p.id === playerId);
-        if (player) player.ready = ready;
+        if (player) {
+            player.ready = ready;
+            player.lastSeen = Date.now();
+        }
+        room.lastActivity = Date.now();
     }
 
     public leaveRoom(roomId: string, playerId: string): void {
@@ -101,15 +174,17 @@ export class RoomManager {
 
         room.players = room.players.filter(p => p.id !== playerId);
         this.playerRooms.delete(playerId);
+        room.lastActivity = Date.now();
 
         // If host left, assign new host
         if (room.hostId === playerId && room.players.length > 0) {
             room.hostId = room.players[0].id;
         }
 
-        // Clean up empty rooms
+        // Clean up empty rooms immediately if all leave
         if (room.players.length === 0) {
             this.rooms.delete(roomId);
+            console.log(`[RoomManager] Deleted empty room ${roomId} upon leave`);
         }
     }
 
@@ -141,6 +216,7 @@ export class RoomManager {
         const gamePlayers: Player[] = room.players.map((p, index) => {
             p.roleName = roles[index].name;
             p.alive = true;
+            p.lastSeen = Date.now();
             return {
                 id: p.id,
                 alive: true,
@@ -149,7 +225,24 @@ export class RoomManager {
         });
 
         room.engine = engine;
+        room.lastActivity = Date.now();
         engine.startGame(gamePlayers);
         return true;
+    }
+
+    /**
+     * Update heartbeat for a specific player to keep them alive in memory
+     */
+    public heartbeat(playerId: string): void {
+        const roomId = this.playerRooms.get(playerId);
+        if (!roomId) return;
+        const room = this.rooms.get(roomId);
+        if (!room) return;
+
+        const player = room.players.find(p => p.id === playerId);
+        if (player) {
+            player.lastSeen = Date.now();
+            room.lastActivity = Date.now();
+        }
     }
 }

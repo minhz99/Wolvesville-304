@@ -28,6 +28,8 @@ const state = {
     config: null,
     // Voice state
     voiceState: null, // { canSpeak, canHear, deafTo, phase }
+    isMicMuted: false,   // Manual local mic state
+    isSpeakerMuted: false, // Manual local speaker state
 };
 
 // Helper: kiểm tra người chơi còn sống không
@@ -90,6 +92,11 @@ const els = {
     toastMsg: $('toastMsg'),
     // Chat panel (collapsible)
     chatPanel: $('chatPanel'),
+    // Voice Controls
+    btnToggleMic: $('btnToggleMic'),
+    btnToggleSpeaker: $('btnToggleSpeaker'),
+    btnToggleMicGame: $('btnToggleMicGame'),
+    btnToggleSpeakerGame: $('btnToggleSpeakerGame'),
 };
 
 // Toggle chat panel collapse (mobile)
@@ -278,9 +285,17 @@ function renderPlayers() {
 
         const innerEmoji = known?.emoji || '';
 
+        // Manual voice tags
+        const micIcon = p.isMicMuted ? '<div class="deaf-icon" style="bottom:22px; right:-8px; border-radius:4px" title="Đã tắt Mic">🚫</div>' : '';
+        const speakerIcon = p.isSpeakerMuted ? '<div class="deaf-icon" style="bottom:-5px; right:-8px; border-radius:4px" title="Đã tắt Loa">🔇</div>' : '';
+
         return `
             <div class="${classes}" data-id="${p.id}" style="--player-color: ${playerStyle.color}">
-                <div class="player-avatar" style="background-color: ${playerStyle.color}20; background-image: url('${playerStyle.icon}'); background-size: cover; background-position: center; border: 2px solid ${playerStyle.color}; text-shadow: 0 0 4px rgba(0,0,0,0.8);">${innerEmoji}</div>
+                <div class="player-avatar" style="background-color: ${playerStyle.color}20; background-image: url('${playerStyle.icon}'); background-size: cover; background-position: center; border: 2px solid ${playerStyle.color}; text-shadow: 0 0 4px rgba(0,0,0,0.8);">
+                    ${innerEmoji}
+                    ${micIcon}
+                    ${speakerIcon}
+                </div>
                 <div>
                     <div class="player-name" style="color: ${playerStyle.color}">${escapeHtml(p.name)}${readyDot}</div>
                     ${hostTag}
@@ -318,8 +333,18 @@ function renderRoleConfig() {
     `).join('');
 }
 
-const roleConfig = {};
-Object.keys(ROLES).forEach(k => roleConfig[k] = 0);
+const roleConfig = {
+    Werewolf: 1,
+    Witch: 1,
+    Guard: 1,
+    Villager: 1,
+    Seer: 1
+};
+Object.keys(ROLES).forEach(k => {
+    if (roleConfig[k] === undefined) {
+        roleConfig[k] = 0;
+    }
+});
 
 function changeRoleCount(role, delta) {
     roleConfig[role] = Math.max(0, (roleConfig[role] || 0) + delta);
@@ -433,14 +458,16 @@ function renderTargets(players, options = {}) {
         const onclickHandler = (isDead && showDeadAsDisabled) ? '' : `onclick="selectTarget('${p.id}')"`;
 
         // Check deaf state
-        const isDeaf = isPlayerDeafToMe(p.id);
+        const isDeaf = isPlayerDeafToMe(p.id) || p.isSpeakerMuted;
         const deafIcon = isDeaf ? '<div class="deaf-icon" title="Không nghe được">🔇</div>' : '';
+        const micIcon = p.isMicMuted ? '<div class="deaf-icon" style="bottom:20px; right:-5px" title="Đã tắt Mic">🚫</div>' : '';
 
         return `
             <div class="target-card ${deadClass} ${selfClass} ${isDeaf ? 'is-deaf' : ''}" data-id="${p.id}" ${onclickHandler} style="--player-color: ${playerStyle.color}">
                 <div class="target-avatar" style="background-color: ${playerStyle.color}20; background-image: url('${playerStyle.icon}'); background-size: cover; background-position: center; border: 2px solid ${playerStyle.color}; text-shadow: 0 0 4px rgba(0,0,0,0.8);">
                     ${known?.emoji || ''}
                     ${deafIcon}
+                    ${micIcon}
                 </div>
                 <div class="target-name" style="color: ${playerStyle.color}">${escapeHtml(p.name)}${isSelf ? ' (Bạn)' : ''}</div>
                 ${roleInfo}
@@ -580,7 +607,13 @@ els.joinBtn.addEventListener('click', () => {
 // Leave
 els.leaveBtn.addEventListener('click', async () => {
     socket.emit('leave_room', { roomId: state.roomId });
-    await window.audioClient?.disconnect();
+    try {
+        if (window.audioClient) {
+            await window.audioClient.disconnect();
+        }
+    } catch (e) {
+        console.error('Lỗi ngắt kết nối audio:', e);
+    }
     showScreen('join');
     state.roomId = null;
     state.isHost = false;
@@ -663,7 +696,22 @@ document.querySelectorAll('.timer-field input').forEach(input => {
 
 // ============ SOCKET EVENTS ============
 
-socket.on('connect', () => { state.playerId = socket.id; });
+socket.on('connect', () => {
+    state.playerId = socket.id;
+
+    // Send heartbeat to prevent RoomManager from GC'ing this socket
+    if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
+    state.heartbeatInterval = setInterval(() => {
+        socket.emit('ping_heartbeat');
+    }, 10000); // every 10 seconds
+});
+
+socket.on('disconnect', () => {
+    if (state.heartbeatInterval) {
+        clearInterval(state.heartbeatInterval);
+        state.heartbeatInterval = null;
+    }
+});
 
 socket.on('room_joined', (data) => {
     state.roomId = data.roomId;
@@ -914,6 +962,24 @@ socket.on('role_visibility', (data) => {
     if (state.currentActionMode === 'idle' && state.phase.includes('NIGHT')) {
         const allAlive = state.players.filter(p => p.alive !== false);
         showNightWaitingUI({ players: allAlive }, els.actionTitle.textContent);
+    }
+});
+
+socket.on('player_voice_state_changed', (data) => {
+    const player = state.players.find(p => p.id === data.playerId);
+    if (player) {
+        player.isMicMuted = data.isMicMuted;
+        player.isSpeakerMuted = data.isSpeakerMuted;
+        if (state.phase === 'WAITING' || !state.roomId) {
+            renderPlayers();
+        } else {
+            // Need to update known targeting icons in the game view too
+            if (state.currentActionMode !== 'idle') {
+                // Not ideal, but safe enough if needed
+                document.querySelectorAll(`.target-card[data-id="${data.playerId}"]`).forEach(card => card.remove());
+                // For simplicity, do not re-render target grid automatically to prevent interrupt UI
+            }
+        }
     }
 });
 
@@ -1226,6 +1292,40 @@ socket.on('error', (data) => {
 socket.on('disconnect', () => {
     showToast('Mất kết nối server...');
 });
+
+// ---- Voice Toggles ----
+function toggleMicBtn() {
+    state.isMicMuted = !state.isMicMuted;
+    [els.btnToggleMic, els.btnToggleMicGame].forEach(b => {
+        if (b) b.classList.toggle('muted', state.isMicMuted);
+    });
+
+    // Toggle Livekit Mic
+    if (window.audioClient) {
+        window.audioClient.setLocalMicEnabled(!state.isMicMuted);
+    }
+
+    socket.emit('toggle_mic', { roomId: state.roomId, isMuted: state.isMicMuted });
+}
+
+function toggleSpeakerBtn() {
+    state.isSpeakerMuted = !state.isSpeakerMuted;
+    window.isAppSpeakerMuted = state.isSpeakerMuted; // Expose globally for livekit.js
+
+    [els.btnToggleSpeaker, els.btnToggleSpeakerGame].forEach(b => {
+        if (b) b.classList.toggle('muted', state.isSpeakerMuted);
+    });
+
+    // Toggle local DOM audio tracks
+    document.querySelectorAll('audio[id^="audio-"]').forEach(el => {
+        el.muted = state.isSpeakerMuted;
+    });
+
+    socket.emit('toggle_speaker', { roomId: state.roomId, isMuted: state.isSpeakerMuted });
+}
+
+[els.btnToggleMic, els.btnToggleMicGame].forEach(b => b?.addEventListener('click', toggleMicBtn));
+[els.btnToggleSpeaker, els.btnToggleSpeakerGame].forEach(b => b?.addEventListener('click', toggleSpeakerBtn));
 
 // ---- Init ----
 showScreen('join');

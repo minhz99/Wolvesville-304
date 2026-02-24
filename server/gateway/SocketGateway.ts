@@ -163,6 +163,40 @@ export class SocketGateway {
                 });
             });
 
+            // Heartbeat to keep room and player alive in memory
+            socket.on('ping_heartbeat', () => {
+                this.roomManager.heartbeat(socket.id);
+            });
+
+            // Manual voice controls (Mic/Speaker toggle)
+            socket.on('toggle_mic', (data: { roomId: string; isMuted: boolean }) => {
+                const room = this.roomManager.getRoom(data.roomId);
+                if (!room) return;
+                const player = room.players.find(p => p.id === socket.id);
+                if (player) {
+                    player.isMicMuted = data.isMuted;
+                    this.io.to(data.roomId).emit('player_voice_state_changed', {
+                        playerId: socket.id,
+                        isMicMuted: player.isMicMuted,
+                        isSpeakerMuted: player.isSpeakerMuted
+                    });
+                }
+            });
+
+            socket.on('toggle_speaker', (data: { roomId: string; isMuted: boolean }) => {
+                const room = this.roomManager.getRoom(data.roomId);
+                if (!room) return;
+                const player = room.players.find(p => p.id === socket.id);
+                if (player) {
+                    player.isSpeakerMuted = data.isMuted;
+                    this.io.to(data.roomId).emit('player_voice_state_changed', {
+                        playerId: socket.id,
+                        isMicMuted: player.isMicMuted,
+                        isSpeakerMuted: player.isSpeakerMuted
+                    });
+                }
+            });
+
             socket.on('disconnect', () => {
                 const roomId = this.roomManager.getPlayerRoom(socket.id);
                 if (roomId) this.handlePlayerLeave(socket, roomId);
@@ -615,8 +649,7 @@ export class SocketGateway {
                     winner: 'JESTER',
                     players: room.players.map(p => ({ id: p.id, name: p.name, role: p.roleName, alive: p.alive })),
                 });
-                this.clearAllTimers(roomId);
-                this.dayState.delete(roomId);
+                this.clearAllTimers(roomId, true);
                 return;
             }
 
@@ -642,8 +675,7 @@ export class SocketGateway {
             this.sysChat(roomId, `🕊️ ${accused?.name} được tha! (${yesVotes} thuận / ${noVotes} chống)`, '🕊️');
         }
 
-        this.clearAllTimers(roomId);
-        this.dayState.delete(roomId);
+        this.clearAllTimers(roomId, true);
 
         if (!this.checkGameOver(roomId)) this.startNextNight(roomId);
     }
@@ -709,8 +741,7 @@ export class SocketGateway {
         this.broadcastAlive(roomId);
         this.broadcastVisibility(roomId);
 
-        this.clearAllTimers(roomId);
-        this.dayState.delete(roomId);
+        this.clearAllTimers(roomId, true);
 
         if (!this.checkGameOver(roomId)) this.startNextNight(roomId);
     }
@@ -724,8 +755,28 @@ export class SocketGateway {
     }
 
     // ================================================================
-    //  ACTION HANDLERS
+    //  MESSAGING & UI HELPERS
     // ================================================================
+
+    private sysChat(roomId: string, message: string, icon = '🤖'): void {
+        this.io.to(roomId).emit('chat_message', {
+            type: 'system',
+            content: message,
+            sender: 'Hệ Thống',
+            icon,
+            timestamp: Date.now()
+        });
+    }
+
+    private pvtChat(roomId: string, playerId: string, message: string, icon = '🔒'): void {
+        this.emitTo(playerId, 'chat_message', {
+            type: 'role-private',
+            content: message,
+            sender: 'Bí Mật',
+            icon,
+            timestamp: Date.now()
+        });
+    }
 
     private handleNightAction(roomId: string, playerId: string, input: any): void {
         const ns = this.nightState.get(roomId);
@@ -909,17 +960,20 @@ export class SocketGateway {
         // Seer investigation và Cupid pairing sẽ được xử lý trong resolveSeerInvestigation/resolveCupidPairing
     }
 
-    private clearAllTimers(roomId: string): void {
+    private clearAllTimers(roomId: string, deleteState: boolean = false): void {
         const ns = this.nightState.get(roomId);
         if (ns?.timerId) {
             clearTimeout(ns.timerId);
             ns.timerId = null;
         }
+        if (deleteState) this.nightState.delete(roomId);
+
         const ds = this.dayState.get(roomId);
         if (ds?.timerId) {
             clearTimeout(ds.timerId);
             ds.timerId = null;
         }
+        if (deleteState) this.dayState.delete(roomId);
     }
 
     private checkGameOver(roomId: string): boolean {
@@ -951,11 +1005,14 @@ export class SocketGateway {
         else if (wolves >= others) winner = 'WEREWOLF';
 
         // Lover win check
+        const loverIds: string[] = [];
         if (!winner && room.engine.state.loverIds) {
             const { cupidId, partnerId } = room.engine.state.loverIds;
-            const cupidAlive = alive.find(p => p.id === cupidId);
-            const partnerAlive = alive.find(p => p.id === partnerId);
-            if (cupidAlive && partnerAlive && alive.length <= 3) winner = 'LOVER';
+            if (room.players.find(p => p.id === cupidId && p.alive)) loverIds.push(cupidId);
+            if (room.players.find(p => p.id === partnerId && p.alive)) loverIds.push(partnerId);
+        }
+        if (loverIds.length === 2 && room.players.filter(p => p.alive).length <= 3) {
+            winner = 'LOVER';
         }
 
         if (winner) {
@@ -971,7 +1028,7 @@ export class SocketGateway {
                 winner,
                 players: room.players.map(p => ({ id: p.id, name: p.name, role: p.roleName, alive: p.alive })),
             });
-            this.clearAllTimers(roomId);
+            this.clearAllTimers(roomId, true);
             this.broadcastVisibility(roomId);
             this.broadcastPlayerList(roomId); // Broadcast list after ready=false
 
@@ -999,24 +1056,33 @@ export class SocketGateway {
             this.emitTo(p.id, 'night_waiting', { players: allAlive });
         }
     }
-    private sysChat(roomId: string, content: string, icon = '📢'): void {
-        this.io.to(roomId).emit('chat_message', { type: 'system', content, icon, timestamp: Date.now() });
-    }
-    private pvtChat(roomId: string, pid: string, content: string, icon = '🔮'): void {
-        this.emitTo(pid, 'chat_message', { type: 'role-private', content, icon, timestamp: Date.now() });
-    }
     private handlePlayerLeave(socket: Socket, roomId: string): void {
         const name = this.roomManager.getPlayerName(roomId, socket.id);
         this.roomManager.leaveRoom(roomId, socket.id);
         socket.leave(roomId);
         this.io.to(roomId).emit('player_left', { playerId: socket.id, playerName: name || 'Ai đó' });
         this.broadcastPlayerList(roomId);
+
+        // If the room just got destroyed because the last player left, aggressive sweep timers
+        const room = this.roomManager.getRoom(roomId);
+        if (!room) {
+            this.clearAllTimers(roomId, true);
+        }
     }
+
     private broadcastPlayerList(roomId: string): void {
         const room = this.roomManager.getRoom(roomId);
         if (!room) return;
         this.io.to(roomId).emit('player_list', {
-            players: room.players.map(p => ({ id: p.id, name: p.name, isHost: p.id === room.hostId, ready: p.ready, alive: p.alive })),
+            players: room.players.map(p => ({
+                id: p.id,
+                name: p.name,
+                isHost: p.id === room.hostId,
+                ready: p.ready,
+                alive: p.alive,
+                isMicMuted: p.isMicMuted,
+                isSpeakerMuted: p.isSpeakerMuted
+            })),
         });
     }
     private broadcastAlive(roomId: string): void {
@@ -1034,18 +1100,6 @@ export class SocketGateway {
         }
     }
 
-    /**
-     * Broadcast voice state to all players based on current phase.
-     *
-     * Voice rules:
-     * - DAY: All alive players can speak and hear each other.
-     * - NIGHT_CUPID_PICK: Everyone deaf (Cupid chưa chọn partner).
-     * - NIGHT_SILENT: Cupid + partner can talk. Everyone else deaf.
-     *   (Guard/Seer, Witch, Hunter phases)
-     * - NIGHT_WOLVES: Wolves can talk. If partner is NOT a wolf, lovers can also talk.
-     *   If partner IS a wolf, wolf talks with wolves, Cupid is deaf.
-     * - DEAD: Dead players can speak/hear each other, and hear all alive players.
-     */
     private broadcastVoiceState(roomId: string, voicePhase: 'LOBBY' | 'DAY' | 'NIGHT_WOLVES' | 'NIGHT_SILENT' | 'NIGHT_CUPID_PICK'): void {
         const room = this.roomManager.getRoom(roomId);
         if (!room) return;
@@ -1072,7 +1126,6 @@ export class SocketGateway {
         const aliveIds = alivePlayers.map(p => p.id);
         const deadIds = deadPlayers.map(p => p.id);
 
-        // Get wolves and lovers
         const wolves = room.players.filter(p => p.alive && p.roleName === 'Werewolf');
         const wolfIds = wolves.map(w => w.id);
 
@@ -1083,87 +1136,68 @@ export class SocketGateway {
             if (room.players.find(p => p.id === partnerId && p.alive)) loverIds.push(partnerId);
         }
 
-        // Check if partner is a wolf (affects lover voice during wolf phase)
-        const partnerIsWolf = loverIds.length === 2 && wolfIds.some(wid => loverIds.includes(wid));
+        const activeLoverIds = (loverIds.length === 2 && !wolfIds.some(wId => loverIds.includes(wId)))
+            ? loverIds : [];
 
         for (const player of room.players) {
-            let voiceState: VoiceState;
-            const isLover = loverIds.includes(player.id);
-            const isWolf = wolfIds.includes(player.id);
+            let canSpeak = false;
+            let canHear: string[] = [];
+            let deafTo: string[] = [];
 
             if (!player.alive) {
-                // Dead players: can speak to other dead, can hear everyone (alive + dead)
-                voiceState = {
-                    canSpeak: true,
-                    canHear: allPlayerIds.filter(id => id !== player.id),
-                    deafTo: aliveIds, // Alive players appear deaf to dead (dead can hear them but alive can't hear dead)
-                    phase: voicePhase,
-                };
-            } else if (voicePhase === 'DAY') {
-                // Day: All alive can speak and hear each other
-                voiceState = {
-                    canSpeak: true,
-                    canHear: aliveIds.filter(id => id !== player.id),
-                    deafTo: deadIds, // Dead appear deaf (alive can't hear dead)
-                    phase: 'DAY',
-                };
-            } else if (voicePhase === 'NIGHT_WOLVES') {
-                // Wolves phase: Wolves can speak/hear each other
-                // If partner is NOT a wolf, lovers can still talk to each other
+                canSpeak = true;
+                if (voicePhase === 'DAY') {
+                    canHear = [...deadIds.filter(id => id !== player.id), ...aliveIds];
+                    deafTo = aliveIds;
+                } else {
+                    canHear = [...deadIds.filter(id => id !== player.id), ...wolfIds, ...activeLoverIds];
+                    deafTo = aliveIds.filter(id => !wolfIds.includes(id) && !activeLoverIds.includes(id));
+                }
+            }
+            else if (voicePhase === 'DAY') {
+                canSpeak = true;
+                canHear = aliveIds.filter(id => id !== player.id);
+                deafTo = deadIds;
+            }
+            else if (voicePhase === 'NIGHT_WOLVES') {
+                const isWolf = wolfIds.includes(player.id);
+                const isActiveLover = activeLoverIds.includes(player.id);
+
                 if (isWolf) {
-                    voiceState = {
-                        canSpeak: true,
-                        canHear: wolfIds.filter(id => id !== player.id),
-                        deafTo: aliveIds.filter(id => !wolfIds.includes(id)),
-                        phase: 'NIGHT_WOLVES',
-                    };
-                } else if (isLover && !partnerIsWolf && loverIds.length === 2) {
-                    // Lover (non-wolf) can talk with partner during wolf phase (since partner is also non-wolf)
-                    voiceState = {
-                        canSpeak: true,
-                        canHear: loverIds.filter(id => id !== player.id),
-                        deafTo: aliveIds.filter(id => !loverIds.includes(id)),
-                        phase: 'NIGHT_WOLVES',
-                    };
-                } else {
-                    // Everyone else is deaf, doesn't know who's talking
-                    voiceState = {
-                        canSpeak: false,
-                        canHear: [],
-                        deafTo: aliveIds.filter(id => id !== player.id),
-                        phase: 'NIGHT_WOLVES',
-                    };
+                    canSpeak = true;
+                    canHear = wolfIds.filter(id => id !== player.id);
                 }
-            } else if (voicePhase === 'NIGHT_SILENT') {
-                // NIGHT_SILENT: Only Cupid + partner can talk (if pair exists)
-                // This applies during Guard/Seer, Witch, Hunter phases
-                if (isLover && loverIds.length === 2) {
-                    voiceState = {
-                        canSpeak: true,
-                        canHear: loverIds.filter(id => id !== player.id),
-                        deafTo: aliveIds.filter(id => !loverIds.includes(id)),
-                        phase: 'NIGHT_LOVERS',
-                    };
-                } else {
-                    // Everyone else is deaf (sleeping)
-                    voiceState = {
-                        canSpeak: false,
-                        canHear: [],
-                        deafTo: aliveIds.filter(id => id !== player.id),
-                        phase: 'NIGHT_SILENT',
-                    };
+                else if (isActiveLover) {
+                    canSpeak = true;
+                    canHear = activeLoverIds.filter(id => id !== player.id);
                 }
-            } else {
-                // Fallback: NIGHT_CUPID_PICK - Everyone is deaf (no partner yet)
-                voiceState = {
-                    canSpeak: false,
-                    canHear: [],
-                    deafTo: aliveIds.filter(id => id !== player.id),
-                    phase: voicePhase,
-                };
+                else {
+                    canSpeak = false;
+                }
+                deafTo = [...deadIds, ...aliveIds.filter(id => id !== player.id && !canHear.includes(id))];
+            }
+            else if (voicePhase === 'NIGHT_SILENT') {
+                const isActiveLover = activeLoverIds.includes(player.id);
+                if (isActiveLover) {
+                    canSpeak = true;
+                    canHear = activeLoverIds.filter(id => id !== player.id);
+                } else {
+                    canSpeak = false;
+                }
+                deafTo = [...deadIds, ...aliveIds.filter(id => id !== player.id && !canHear.includes(id))];
+            }
+            else {
+                canSpeak = false;
+                canHear = [];
+                deafTo = aliveIds.filter(id => id !== player.id);
             }
 
-            this.emitTo(player.id, 'voice_state', voiceState);
+            this.emitTo(player.id, 'voice_state', {
+                canSpeak,
+                canHear,
+                deafTo,
+                phase: voicePhase
+            });
         }
     }
 }

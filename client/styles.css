@@ -346,6 +346,51 @@ body {
     text-align: center;
 }
 
+.voice-controls {
+    display: inline-flex;
+    gap: 8px;
+    margin-right: 12px;
+    vertical-align: middle;
+}
+
+.btn-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-full);
+    background: var(--bg-elevated);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.btn-icon:hover {
+    background: var(--bg-input);
+    border-color: var(--accent);
+}
+
+.btn-icon.muted {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: var(--danger);
+    position: relative;
+}
+
+/* Red slash for muted controls */
+.btn-icon.muted::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 2px;
+    background-color: var(--danger);
+    transform: rotate(45deg);
+    border-radius: 2px;
+}
+
 .lobby-content {
     flex: 1;
     padding: 16px;
@@ -905,7 +950,8 @@ body {
     cursor: pointer;
     transition: all var(--transition);
     text-align: center;
-    min-height: 44px; /* Touch-friendly minimum */
+    min-height: 44px;
+    /* Touch-friendly minimum */
 }
 
 .target-card:hover {
@@ -954,9 +1000,12 @@ body {
 }
 
 @keyframes pulse-deaf {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.5;
     }
@@ -997,9 +1046,12 @@ body {
 }
 
 @keyframes pulse-vote {
-    0%, 100% {
+
+    0%,
+    100% {
         transform: translateX(-50%) scale(1);
     }
+
     50% {
         transform: translateX(-50%) scale(1.1);
     }
@@ -1537,11 +1589,15 @@ body {
         padding-bottom: max(8px, env(safe-area-inset-bottom));
     }
 }
+
 /* --- Animations for Transitions and Death --- */
 
 .phase-overlay {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     pointer-events: none;
     z-index: 9999;
     opacity: 0;
@@ -1556,27 +1612,92 @@ body {
 }
 
 @keyframes fadeToNight {
-    0% { background-color: transparent; opacity: 0; }
-    20% { background-color: #050510; opacity: 0.8; }
-    80% { background-color: #050510; opacity: 0.8; }
-    100% { background-color: transparent; opacity: 0; }
+    0% {
+        background-color: transparent;
+        opacity: 0;
+    }
+
+    20% {
+        background-color: #050510;
+        opacity: 0.8;
+    }
+
+    80% {
+        background-color: #050510;
+        opacity: 0.8;
+    }
+
+    100% {
+        background-color: transparent;
+        opacity: 0;
+    }
 }
 
 @keyframes fadeToDay {
-    0% { background-color: transparent; opacity: 0; }
-    20% { background-color: #fde68a; opacity: 0.6; }
-    80% { background-color: #fde68a; opacity: 0.6; }
-    100% { background-color: transparent; opacity: 0; }
+    0% {
+        background-color: transparent;
+        opacity: 0;
+    }
+
+    20% {
+        background-color: #fde68a;
+        opacity: 0.6;
+    }
+
+    80% {
+        background-color: #fde68a;
+        opacity: 0.6;
+    }
+
+    100% {
+        background-color: transparent;
+        opacity: 0;
+    }
 }
 
 @keyframes shakeDeath {
-    0% { transform: scale(1) translateX(0); box-shadow: 0 0 0 transparent; border-color: inherit; }
-    10% { transform: scale(1.05) translateX(-6px) rotate(-3deg); border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.8); }
-    20% { transform: scale(1.05) translateX(6px) rotate(3deg); border-color: #ef4444; box-shadow: 0 0 25px rgba(239, 68, 68, 1); }
-    30% { transform: scale(1.05) translateX(-6px) rotate(-3deg); border-color: #ef4444; box-shadow: 0 0 25px rgba(239, 68, 68, 1); }
-    40% { transform: scale(1.05) translateX(6px) rotate(3deg); border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.8); }
-    50% { transform: scale(1.05) translateX(-4px) rotate(-1deg); border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
-    100% { transform: scale(1) translateX(0) rotate(0); border-color: rgba(255, 255, 255, 0.04); opacity: 0.6; filter: grayscale(0.8); }
+    0% {
+        transform: scale(1) translateX(0);
+        box-shadow: 0 0 0 transparent;
+        border-color: inherit;
+    }
+
+    10% {
+        transform: scale(1.05) translateX(-6px) rotate(-3deg);
+        border-color: #ef4444;
+        box-shadow: 0 0 15px rgba(239, 68, 68, 0.8);
+    }
+
+    20% {
+        transform: scale(1.05) translateX(6px) rotate(3deg);
+        border-color: #ef4444;
+        box-shadow: 0 0 25px rgba(239, 68, 68, 1);
+    }
+
+    30% {
+        transform: scale(1.05) translateX(-6px) rotate(-3deg);
+        border-color: #ef4444;
+        box-shadow: 0 0 25px rgba(239, 68, 68, 1);
+    }
+
+    40% {
+        transform: scale(1.05) translateX(6px) rotate(3deg);
+        border-color: #ef4444;
+        box-shadow: 0 0 15px rgba(239, 68, 68, 0.8);
+    }
+
+    50% {
+        transform: scale(1.05) translateX(-4px) rotate(-1deg);
+        border-color: #ef4444;
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+    }
+
+    100% {
+        transform: scale(1) translateX(0) rotate(0);
+        border-color: rgba(255, 255, 255, 0.04);
+        opacity: 0.6;
+        filter: grayscale(0.8);
+    }
 }
 
 .anim-death {
