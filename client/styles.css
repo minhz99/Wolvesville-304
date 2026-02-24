@@ -1539,3 +1539,49 @@ body {
         padding-bottom: max(8px, env(safe-area-inset-bottom));
     }
 }
+/* --- Animations for Transitions and Death --- */
+
+.phase-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0;
+}
+
+.phase-overlay.anim-to-night {
+    animation: fadeToNight 2.5s ease-in-out forwards;
+}
+
+.phase-overlay.anim-to-day {
+    animation: fadeToDay 2.5s ease-in-out forwards;
+}
+
+@keyframes fadeToNight {
+    0% { background-color: transparent; opacity: 0; }
+    20% { background-color: #050510; opacity: 0.8; }
+    80% { background-color: #050510; opacity: 0.8; }
+    100% { background-color: transparent; opacity: 0; }
+}
+
+@keyframes fadeToDay {
+    0% { background-color: transparent; opacity: 0; }
+    20% { background-color: #fde68a; opacity: 0.6; }
+    80% { background-color: #fde68a; opacity: 0.6; }
+    100% { background-color: transparent; opacity: 0; }
+}
+
+@keyframes shakeDeath {
+    0% { transform: scale(1) translateX(0); box-shadow: 0 0 0 transparent; border-color: inherit; }
+    10% { transform: scale(1.05) translateX(-6px) rotate(-3deg); border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.8); }
+    20% { transform: scale(1.05) translateX(6px) rotate(3deg); border-color: #ef4444; box-shadow: 0 0 25px rgba(239, 68, 68, 1); }
+    30% { transform: scale(1.05) translateX(-6px) rotate(-3deg); border-color: #ef4444; box-shadow: 0 0 25px rgba(239, 68, 68, 1); }
+    40% { transform: scale(1.05) translateX(6px) rotate(3deg); border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.8); }
+    50% { transform: scale(1.05) translateX(-4px) rotate(-1deg); border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+    100% { transform: scale(1) translateX(0) rotate(0); border-color: rgba(255, 255, 255, 0.04); opacity: 0.6; filter: grayscale(0.8); }
+}
+
+.anim-death {
+    animation: shakeDeath 1.5s ease-out forwards;
+    z-index: 10;
+}
