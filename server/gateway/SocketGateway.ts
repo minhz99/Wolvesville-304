@@ -86,7 +86,28 @@ export class SocketGateway {
                             wsUrl: liveKitWsUrl,
                             playerId: persistentPlayerId
                         });
-                        this.broadcastVoiceState(roomId, 'LOBBY');
+
+                        if (!room.engine) {
+                            this.broadcastVoiceState(roomId, 'LOBBY');
+                        } else {
+                            // Phát lại voice state đang chạy trong game
+                            const p = room.engine.state.phase;
+                            let phase: 'LOBBY' | 'DAY' | 'NIGHT_WOLVES' | 'NIGHT_SILENT' | 'NIGHT_CUPID_PICK' = 'DAY';
+
+                            if (p === 'DAY_DISCUSSION' || p === 'DAY_CONFIRM_HANG' || p.includes('DEFENSE')) {
+                                phase = 'DAY';
+                            } else {
+                                const ns = this.nightState.get(roomId);
+                                if (ns) {
+                                    if (ns.phase === 'WOLVES') phase = 'NIGHT_WOLVES';
+                                    else if (ns.phase === 'CUPID_PICK') phase = 'NIGHT_CUPID_PICK';
+                                    else phase = 'NIGHT_SILENT';
+                                } else {
+                                    phase = 'NIGHT_SILENT';
+                                }
+                            }
+                            this.broadcastVoiceState(roomId, phase);
+                        }
                     } catch (e) {
                         console.error('Lỗi khi tạo token LiveKit:', e);
                     }

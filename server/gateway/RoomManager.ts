@@ -154,7 +154,7 @@ export class RoomManager {
                 socketId: playerId, // Fallback if not specified otherwise
                 name: playerName,
                 ready: false,
-                alive: true,
+                alive: !room.engine, // If game already running, they start dead (spectator)
                 lastSeen: Date.now(),
                 isMicMuted: false,
                 isSpeakerMuted: false,
