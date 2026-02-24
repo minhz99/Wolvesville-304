@@ -1294,7 +1294,8 @@ socket.on('disconnect', () => {
 });
 
 // ---- Voice Toggles ----
-function toggleMicBtn() {
+function toggleMicBtn(e) {
+    if (e) e.preventDefault();
     state.isMicMuted = !state.isMicMuted;
     [els.btnToggleMic, els.btnToggleMicGame].forEach(b => {
         if (b) b.classList.toggle('muted', state.isMicMuted);
@@ -1308,7 +1309,9 @@ function toggleMicBtn() {
     socket.emit('toggle_mic', { roomId: state.roomId, isMuted: state.isMicMuted });
 }
 
-function toggleSpeakerBtn() {
+function toggleSpeakerBtn(e) {
+    if (e) e.preventDefault();
+    console.log('[Voice] Toggling Speaker, Current State:', state.isSpeakerMuted);
     state.isSpeakerMuted = !state.isSpeakerMuted;
     window.isAppSpeakerMuted = state.isSpeakerMuted; // Expose globally for livekit.js
 
