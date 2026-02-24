@@ -3,7 +3,7 @@ import { GameContext, GameEvent, Player } from '../types/GameTypes';
 
 export class Jester extends Role {
     name = 'Jester';
-    displayName = 'Thằng hề';
+    displayName = 'Thằng Hề';
     description = 'Phe đơn độc. Không có kỹ năng đặc biệt. Thằng hề thắng nếu bị dân làng bỏ phiếu treo cổ — hãy khiến mọi người nghi ngờ bạn!';
     team = 'SOLO';
 
