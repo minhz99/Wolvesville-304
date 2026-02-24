@@ -117,14 +117,14 @@ export class SocketGateway {
                     if (ps && p.roleName) {
                         ps.emit('game_started', { phase: 'NIGHT_INIT', round: 1, role: p.roleName, config });
                         ps.emit('role_visibility', { knownRoles: room.engine.buildRoleVisibility(p.id) });
-                        
+
                         // Send LiveKit token to player
                         const playerToken = playerTokens.find(pt => pt.playerId === p.id);
                         if (playerToken?.token && liveKitWsUrl) {
-                            ps.emit('voice_token', { 
-                                token: playerToken.token, 
+                            ps.emit('voice_token', {
+                                token: playerToken.token,
                                 wsUrl: liveKitWsUrl,
-                                playerId: p.id 
+                                playerId: p.id
                             });
                         }
                     }
@@ -216,7 +216,7 @@ export class SocketGateway {
             if (!room.engine.state.loverIds) {
                 this.autoRandom(roomId, 'Cupid', cupid.id);
                 this.resolveCupidPairing(roomId, cupid.id);
-                
+
                 // Thông báo cho cả 2 người yêu nếu vừa được ghép
                 if (room.engine.state.loverIds) {
                     this.notifyLovers(roomId);
@@ -322,7 +322,7 @@ export class SocketGateway {
 
         // Thông báo cho Cupid: tên partner + role của partner
         this.pvtChat(roomId, cupidId, `💕 Người yêu của bạn: ${partnerPlayer.name} (${partnerRoleName})`, '💕');
-        
+
         // Thông báo cho Partner: được chọn làm tình nhân + tên Cupid
         this.pvtChat(roomId, partnerId, `💕 Cupid (${cupidPlayer.name}) đã chọn bạn làm Tình Nhân!`, '💕');
 
@@ -347,7 +347,7 @@ export class SocketGateway {
 
         this.sysChat(roomId, '🐺 Ma Sói đang thảo luận...', '🐺');
         this.io.to(roomId).emit('sound_effect', { sound: 'suspense' });
-        
+
         // Use wolfDiscussion timer for wolves
         const wolfTime = config.timers.wolfDiscussion;
         for (const w of wolves) this.emitTo(w.id, 'wolf_action_request', { players: targets, wolves: wolves.map(x => ({ id: x.id, name: x.name })), actionTitle: 'Bỏ phiếu mục tiêu', timeLimit: wolfTime });
@@ -737,13 +737,13 @@ export class SocketGateway {
         // Cupid pick: immediately resolve, show role, and switch to waiting UI
         if (ns.phase === 'CUPID_PICK' && player.roleName === 'Cupid') {
             this.resolveCupidPairing(roomId, playerId);
-            
+
             // Thông báo cho cả 2 người yêu ngay lập tức
             this.notifyLovers(roomId);
-            
+
             // Gửi action_confirmed trước để client reset actionMode về idle
             this.emitTo(playerId, 'action_confirmed', { message: '💕 Đã chọn người yêu!' });
-            
+
             // Sau đó gửi waiting UI cho Cupid
             const allAlive = room.players.filter(p => p.alive).map(p => ({ id: p.id, name: p.name, alive: p.alive }));
             this.emitTo(playerId, 'cupid_waiting', { players: allAlive });
@@ -956,6 +956,11 @@ export class SocketGateway {
         }
 
         if (winner) {
+            // Khi game over, xoá các cờ sẵn sàng của toàn bộ người chơi để có logic chơi lại
+            for (const p of room.players) {
+                p.ready = false;
+            }
+
             const icon = winner === 'WEREWOLF' ? '🐺' : (winner === 'LOVER' ? '💕' : '🏆');
             this.sysChat(roomId, `${icon} Game kết thúc! ${winner} thắng!`, icon);
             this.io.to(roomId).emit('sound_effect', { sound: 'game_over' });
@@ -965,6 +970,11 @@ export class SocketGateway {
             });
             this.clearAllTimers(roomId);
             this.broadcastVisibility(roomId);
+            this.broadcastPlayerList(roomId); // Broadcast list after ready=false
+
+            // Xoá engine để cho phép game mới bắt đầu trên cùng một room
+            room.engine = undefined;
+
             return true;
         }
         return false;
@@ -1044,7 +1054,7 @@ export class SocketGateway {
         // Get wolves and lovers
         const wolves = room.players.filter(p => p.alive && p.roleName === 'Werewolf');
         const wolfIds = wolves.map(w => w.id);
-        
+
         const loverIds: string[] = [];
         if (room.engine.state.loverIds) {
             const { cupidId, partnerId } = room.engine.state.loverIds;
