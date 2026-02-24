@@ -56,7 +56,7 @@
 }
 
 html {
-    font-size: 16px;
+    font-size: clamp(14px, 2vw + 10px, 16px);
     -webkit-tap-highlight-color: transparent;
 }
 
@@ -122,12 +122,13 @@ body {
     border-radius: var(--radius-md);
     font-family: var(--font);
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: clamp(0.9rem, 1.5vw + 0.5rem, 1rem);
     cursor: pointer;
     transition: all var(--transition);
     white-space: nowrap;
     position: relative;
     overflow: hidden;
+    min-height: 44px;
 }
 
 .btn:active {
@@ -208,7 +209,8 @@ body {
 
 .input-group input {
     width: 100%;
-    padding: 14px 16px 14px 44px;
+    padding: clamp(12px, 2vw, 16px) 16px clamp(12px, 2vw, 16px) 44px;
+    min-height: 48px;
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: var(--radius-md);
     background: var(--bg-input);
@@ -354,23 +356,24 @@ body {
 }
 
 .btn-icon {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border-radius: var(--radius-full);
     background: var(--bg-elevated);
     border: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    font-size: 1.25rem;
     color: var(--text-primary);
     cursor: pointer;
-    transition: all var(--transition);
+    transition: transform var(--transition), background var(--transition), border-color var(--transition);
 }
 
 .btn-icon:hover {
     background: var(--bg-input);
     border-color: var(--accent);
+    transform: scale(1.05);
 }
 
 .btn-icon.muted {
@@ -393,11 +396,11 @@ body {
 
 .lobby-content {
     flex: 1;
-    padding: 16px;
+    padding: clamp(16px, 3vw, 24px);
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    max-width: 600px;
+    gap: clamp(16px, 3vw, 24px);
+    max-width: 800px;
     margin: 0 auto;
     width: 100%;
 }
@@ -425,11 +428,19 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 12px;
+    padding: clamp(8px, 1.5vw, 12px) 12px;
     border-radius: var(--radius-md);
     background: var(--bg-card);
     border: 1px solid rgba(255, 255, 255, 0.04);
-    transition: all var(--transition);
+    transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition), background var(--transition);
+    min-height: 48px;
+    cursor: pointer;
+}
+
+.player-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 .player-card.is-host {
@@ -499,13 +510,15 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 12px;
+    padding: clamp(10px, 1.5vw, 14px) 12px;
+    min-height: 54px;
     border-radius: var(--radius-md);
     background: var(--bg-elevated);
-    transition: all var(--transition);
+    transition: transform var(--transition), background var(--transition);
 }
 
 .role-item:hover {
+    transform: translateX(4px);
     background: rgba(139, 92, 246, 0.06);
 }
 
@@ -539,8 +552,8 @@ body {
 }
 
 .role-counter button {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
     border-radius: var(--radius-sm);
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: var(--bg-card);
@@ -614,9 +627,10 @@ body {
 
 .timer-field input {
     width: 100%;
-    padding: 8px 10px;
+    padding: 12px 10px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: var(--radius-sm);
+    min-height: 44px;
     background: var(--bg-input);
     color: var(--text-primary);
     font-family: var(--font);
@@ -660,7 +674,7 @@ body {
 
 /* Mobile: collapsible chat */
 .chat-panel.collapsed {
-    max-height: 40px;
+    max-height: 52px;
     overflow: hidden;
 }
 
@@ -668,15 +682,15 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 16px;
+    padding: 12px 16px;
     cursor: pointer;
     user-select: none;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     font-weight: 600;
     color: var(--text-secondary);
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     flex-shrink: 0;
-    min-height: 40px;
+    min-height: 52px;
 }
 
 .chat-toggle-icon {
@@ -956,19 +970,20 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    padding: 12px 8px;
+    padding: clamp(8px, 1.5vw, 12px) 8px;
     border-radius: var(--radius-md);
     background: var(--bg-card);
     border: 2px solid transparent;
     cursor: pointer;
-    transition: all var(--transition);
+    transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
     text-align: center;
-    min-height: 44px;
-    /* Touch-friendly minimum */
+    min-height: 60px;
 }
 
 .target-card:hover {
-    border-color: rgba(139, 92, 246, 0.3);
+    border-color: rgba(139, 92, 246, 0.5);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
 }
 
 .target-card.selected {
@@ -1617,31 +1632,39 @@ body {
 }
 
 .phase-overlay.anim-to-night {
-    animation: fadeToNight 2.5s ease-in-out forwards;
+    animation: fadeToNight 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .phase-overlay.anim-to-day {
-    animation: fadeToDay 2.5s ease-in-out forwards;
+    animation: fadeToDay 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes fadeToNight {
     0% {
         background-color: transparent;
+        backdrop-filter: blur(0px);
+        -webkit-backdrop-filter: blur(0px);
         opacity: 0;
     }
 
     20% {
-        background-color: #050510;
-        opacity: 0.8;
+        background-color: rgba(5, 5, 16, 0.9);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        opacity: 1;
     }
 
     80% {
-        background-color: #050510;
-        opacity: 0.8;
+        background-color: rgba(5, 5, 16, 0.9);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        opacity: 1;
     }
 
     100% {
         background-color: transparent;
+        backdrop-filter: blur(0px);
+        -webkit-backdrop-filter: blur(0px);
         opacity: 0;
     }
 }
@@ -1654,12 +1677,12 @@ body {
 
     20% {
         background-color: #fde68a;
-        opacity: 0.6;
+        opacity: 0.8;
     }
 
     80% {
         background-color: #fde68a;
-        opacity: 0.6;
+        opacity: 0.8;
     }
 
     100% {
