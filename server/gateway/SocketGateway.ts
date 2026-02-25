@@ -291,6 +291,8 @@ export class SocketGateway {
         const ns: NightRoomState = { phase: 'GUARD_SEER', actions: {}, wolfVotes: {}, witchAction: null, wolfTarget: null, timerId: null };
         this.nightState.set(roomId, ns);
 
+        room.engine.setPhase(GamePhase.NIGHT_INIT);
+
         this.io.to(roomId).emit('phase_change', { phase: 'NIGHT_INIT', round: room.engine.state.round });
         this.clearAllTimers(roomId);
 
