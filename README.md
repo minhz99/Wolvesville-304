@@ -12,16 +12,16 @@ Trò chơi xoay quanh cuộc chiến sinh tồn giữa phe **Dân Làng** và ph
 Ban đêm là lúc các vai trò có chức năng thức dậy để thực hiện kỹ năng bí mật.
 **Luật Voice Chat:** Toàn bộ người chơi sẽ bị tắt mic và tắt loa (Night Silent), ngoại trừ **Sói** được nói chuyện và nghe thấy nhau, và **Cặp Đôi (Tình Nhân)** được nói chuyện riêng với nhau nếu còn sống.
 Thứ tự hành động (được hệ thống tự động gọi và xử lý song song hoặc nối tiếp tùy logic):
-1. **Thần Tình Yêu (Đêm 1):** Chọn ghép đôi 2 người bất kỳ (có thể ghép bản thân).
+1. **Cupid (Đêm 1):** Chọn ghép đôi bản thân với 1 người khác.
 2. **Tiên Tri:** Chọn 1 người để soi xem là Sói hay Dân. Tiên tri sẽ thấy team tại thời điểm bị soi (Sói Nguyền chưa biến hình vẫn soi ra là Dân).
 3. **Bảo Vệ:** Chọn 1 người để bảo vệ khỏi sự tấn công của Ma Sói trong đêm đó. Không block được thuốc độc của Phù thủy.
-4. **Ma Sói:** Cả đàn thức dậy, thảo luận (qua Voice) và Vote cắn 1 người.
-5. **Phù Thủy:** Dậy sau cùng. Được hệ thống báo cho biết ai vừa bị Sói cắn. Phù thủy có quyền dùng **Bình Cứu** để cứu nạn nhân, và/hoặc dùng **Bình Độc** để giết 1 người tùy ý. (Mỗi bình chỉ dùng 1 lần trong cả game).
+4. **Ma Sói:** Cả đàn thức dậy, thảo luận (qua Voice) và Vote cắn 1 người (Mỗi sói sẽ vote một người, chọn người có số phiếu cao nhất hoặc random nếu tỉ lệ bằng nhau).
+5. **Phù Thủy:** Được hệ thống báo cho biết ai vừa bị Sói cắn. Phù thủy có quyền dùng **Bình Cứu** để cứu nạn nhân, và/hoặc dùng **Bình Độc** để giết 1 người tùy ý. (Mỗi bình chỉ dùng 1 lần trong cả game).
 6. **Thợ Săn:** Chọn 1 người làm "Mục Tiêu Trả Thù". Bất cứ khi nào Thợ săn chết (do Sói, Phù thủy, hoặc Treo cổ), người bị ghim cũng sẽ chết theo. Nếu Thợ săn bị 2 nguồn gây sát thương cùng lúc (VD: Vừa bị Sói cắn + Phù thủy ném độc), Thợ săn sẽ gục ngay lập tức và mất khả năng bắn.
 
 ### ☀️ Ban Ngày (Day Phase)
 Hệ thống thông báo danh sách những người đã chết trong đêm.
-**Luật Voice Chat:** Tất cả những người **còn sống** được bật Mic và Loa để tranh luận công khai. Người chết trở thành "Thượng Đế", chỉ có thể chat và nghe người sống nói, không can thiệp được vào game.
+**Luật Voice Chat:** Tất cả những người **còn sống** được bật Mic và Loa để tranh luận công khai. Người chết trở thành "Thượng Đế", chỉ có thể nói chuyện với nhau và nghe người sống nói, không can thiệp được vào game.
 1. **Giai đoạn Thảo luận & Buộc Tội (Discussion & Accusation)**: Mọi người tự do chat/Voice. 
    - Đi kèm là hệ thống Vote. Người chơi có thể vote bất kỳ ai (kể cả bản thân).
    - Nếu một người nhận được **Đúng 50% số vé trở lên** tổng số người ĐANG SỐNG, người đó ngay lập tức bị đẩy lên giàn treo cổ. (Ví dụ 10 người thì cần đúng 5 vé, 11 người thì cần 6 vé).
@@ -34,7 +34,7 @@ Game tự động kiểm tra thắng/thua sau mỗi sự kiện chết hoặc sa
 1. **Phe Sói thắng**: Khi số lượng Sói CÒN SỐNG lớn hơn hoặc bằng (>=) số lượng người còn sống của tất cả các phe khác gộp lại.
 2. **Phe Dân thắng**: Khi toàn bộ Sói đã chết (Số lượng Sói = 0) và không có Phe thứ 3 nào đạt điều kiện thắng.
 3. **Phe Cặp Đôi thắng (Tình nhân)**: Nếu 2 người yêu nhau vẫn còn sống, VÀ trên sân chỉ còn tối đa 1 người khác (Tổng số người sống = 3 hoặc 2, trong đó có cặp đôi). Tình yêu vượt lên tất cả!
-4. **Kẻ Ngốc thắng (Jester)**: Nếu Thằng Hề (Jester) bị LÀNG BỎ PHIẾU TREO CỔ thành công vào ban ngày. Thằng Hề sẽ thắng một mình và game kết thúc ngay lập tức. (Lưu ý: Nếu Thằng hề chết trong đêm do Sói hoặc Phù Thủy, hắn sẽ thua ngậm ngùi).
+4. **Thằng Hề thắng (Jester)**: Nếu Thằng Hề (Jester) bị LÀNG BỎ PHIẾU TREO CỔ thành công vào ban ngày. Thằng Hề sẽ thắng một mình và game kết thúc ngay lập tức. (Lưu ý: Nếu Thằng Hề chết trong đêm do Sói hoặc Phù Thủy, hắn sẽ thua ngậm ngùi).
 
 ---
 
@@ -51,7 +51,7 @@ Game tự động kiểm tra thắng/thua sau mỗi sự kiện chết hoặc sa
 | **Thần Tình Yêu**| Dân | Ghép đôi | Chỉ tác dụng đêm đầu. Cặp đôi có kênh Voice riêng, nếu 1 người chết người kia chết theo. |
 | **Già Làng** | Dân | Chống cắn | Bị động: Có 2 mạng khi Sói cắn. Không chống được Độc hoặc Treo cổ. |
 | **Sói Nguyền** | Dân/Sói | Hắc hóa | Bắt đầu là phe Dân. Nếu bị Sói cắn, sẽ KHÔNG CHẾT mà biến ngay thành Sói thuộc phe Sói. |
-| **Thằng Ngốc** | Solo | Chọc tức | Thắng game NGAY LẬP TỨC nếu lừa được Dân làng treo cổ mình vào ban ngày. |
+| **Thằng Hề** | Solo | Chọc tức | Thắng game NGAY LẬP TỨC nếu lừa được Dân làng treo cổ mình vào ban ngày. |
 
 ---
 
@@ -89,4 +89,4 @@ Game tự động kiểm tra thắng/thua sau mỗi sự kiện chết hoặc sa
    ```
 
 5. **Chơi game:**
-   Truy cập `http://localhost:3000` (Mở port trên điện thoại / nhiều tab để test). Engine sẽ tự auto-start game khi chủ phòng thiết lập xong Role.
+   Truy cập `http://localhost:3521` (Mở port trên điện thoại / nhiều tab để test). Engine sẽ tự auto-start game khi chủ phòng thiết lập xong Role và tất cả người chơi đã sẵn sàng.
