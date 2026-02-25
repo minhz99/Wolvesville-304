@@ -1,133 +1,92 @@
 # 🐺 Wolvesville 30/4 — High-Performance Werewolf Engine
 
-**Wolvesville 30/4** là một engine game Ma Sói (Werewolf) hiện đại, được xây dựng với kiến trúc **Plugin-based** và cơ chế **Event-driven Chain Reaction**. Toàn bộ luồng trò chơi được tự động hóa (Auto-moderated), mang lại trải nghiệm mượt mà, công bằng và giàu tính chiến thuật.
+**Wolvesville 30/4** là một engine game Ma Sói (Werewolf) hiện đại, được xây dựng với kiến trúc **Plugin-based** và cơ chế **Event-driven Chain Reaction**. Toàn bộ luồng trò chơi được tự động hóa (Auto-moderated), mang lại trải nghiệm mượt mà, công bằng và giàu tính chiến thuật. Hệ thống còn được tích hợp **Voice Chat Real-time** siêu mượt theo từng phase (giai đoạn) của trò chơi.
 
 ---
 
-## 🚀 Tính năng nổi bật
+## 📜 Luật Chơi & Flow Trò Chơi (Game Logic)
 
-- **Plugin-based Architecture** — Các vai trò (Roles) và kỹ năng (Skills) hoàn toàn tách biệt khỏi core engine. Việc thêm vai trò mới chỉ mất vài phút.
-- **Event-driven Chain Reaction** — Hệ thống EventBus xử lý các phản ứng dây chuyền (VD: Thợ săn chết bắn người, người đó chết kéo theo tình nhân chết).
-- **Auto-Moderated** — Engine tự động điều phối toàn bộ các giai đoạn (Phases), không cần người quản trò.
-- **Skill Composition** — Vai trò được xây dựng bằng cách lắp ghép các module kỹ năng (Attack, Protect, Investigate, Potion...).
-- **Real-time Multi-room** — Hỗ trợ nhiều phòng chơi đồng thời với hệ thống Socket.IO hiệu năng cao.
-- **Server-Authoritative** — Mọi logic quan trọng đều được xử lý và kiểm soát tại Server để đảm bảo tính minh bạch.
+Trò chơi xoay quanh cuộc chiến sinh tồn giữa phe **Dân Làng** và phe **Ma Sói**. Một vòng lặp chuẩn của game luôn bắt đầu từ **Ban Đêm**, sau đó sang **Ban Ngày**, và tiếp tục cho đến khi có một phe đạt điều kiện thắng.
 
----
+### 🌑 Ban Đêm (Night Phase)
+Ban đêm là lúc các vai trò có chức năng thức dậy để thực hiện kỹ năng bí mật.
+**Luật Voice Chat:** Toàn bộ người chơi sẽ bị tắt mic và tắt loa (Night Silent), ngoại trừ **Sói** được nói chuyện và nghe thấy nhau, và **Cặp Đôi (Tình Nhân)** được nói chuyện riêng với nhau nếu còn sống.
+Thứ tự hành động (được hệ thống tự động gọi và xử lý song song hoặc nối tiếp tùy logic):
+1. **Thần Tình Yêu (Đêm 1):** Chọn ghép đôi 2 người bất kỳ (có thể ghép bản thân).
+2. **Tiên Tri:** Chọn 1 người để soi xem là Sói hay Dân. Tiên tri sẽ thấy team tại thời điểm bị soi (Sói Nguyền chưa biến hình vẫn soi ra là Dân).
+3. **Bảo Vệ:** Chọn 1 người để bảo vệ khỏi sự tấn công của Ma Sói trong đêm đó. Không block được thuốc độc của Phù thủy.
+4. **Ma Sói:** Cả đàn thức dậy, thảo luận (qua Voice) và Vote cắn 1 người.
+5. **Phù Thủy:** Dậy sau cùng. Được hệ thống báo cho biết ai vừa bị Sói cắn. Phù thủy có quyền dùng **Bình Cứu** để cứu nạn nhân, và/hoặc dùng **Bình Độc** để giết 1 người tùy ý. (Mỗi bình chỉ dùng 1 lần trong cả game).
+6. **Thợ Săn:** Chọn 1 người làm "Mục Tiêu Trả Thù". Bất cứ khi nào Thợ săn chết (do Sói, Phù thủy, hoặc Treo cổ), người bị ghim cũng sẽ chết theo. Nếu Thợ săn bị 2 nguồn gây sát thương cùng lúc (VD: Vừa bị Sói cắn + Phù thủy ném độc), Thợ săn sẽ gục ngay lập tức và mất khả năng bắn.
 
-## 🛠️ Tech Stack
+### ☀️ Ban Ngày (Day Phase)
+Hệ thống thông báo danh sách những người đã chết trong đêm.
+**Luật Voice Chat:** Tất cả những người **còn sống** được bật Mic và Loa để tranh luận công khai. Người chết trở thành "Thượng Đế", chỉ có thể chat và nghe người sống nói, không can thiệp được vào game.
+1. **Giai đoạn Thảo luận & Buộc Tội (Discussion & Accusation)**: Mọi người tự do chat/Voice. 
+   - Đi kèm là hệ thống Vote. Người chơi có thể vote bất kỳ ai (kể cả bản thân).
+   - Nếu một người nhận được **Đúng 50% số vé trở lên** tổng số người ĐANG SỐNG, người đó ngay lập tức bị đẩy lên giàn treo cổ. (Ví dụ 10 người thì cần đúng 5 vé, 11 người thì cần 6 vé).
+2. **Giai đoạn Xác nhận Treo Cổ (Confirm Hang)**: 
+   - Những người sống (kể cả nạn nhân) sẽ bỏ phiếu "Đồng ý" (Yes) hoặc "Phản đối" (No).
+   - Nếu số phiếu Đồng Ý đạt ngưỡng **Đúng 50% tổng số người đang sống trở lên**, nạn nhân sẽ chính thức bị treo cổ và chết. Nếu không đủ 50%, nạn nhân được tha.
 
-| Thành phần | Công nghệ |
-|:---|:---|
-| **Ngôn ngữ** | TypeScript (ES6+) |
-| **Runtime** | Node.js |
-| **Server Framework** | Express.js |
-| **Real-time Communication** | Socket.IO |
-| **Development Tool** | ts-node, Nodemon |
-| **Client** | Vanilla HTML5, CSS3 (Modern Glassmorphism), JavaScript (ES6) |
-
----
-
-## 📂 Cấu trúc dự án
-
-```text
-wolvesville-304/
-├── server/
-│   ├── index.ts                 # Entry point (Express + Socket.IO)
-│   ├── engine/                  # 🧠 Bộ não trung tâm (Core Engine)
-│   │   ├── GameEngine.ts        # Điều phối logic game & phase
-│   │   ├── GameState.ts         # Quản lý trạng thái runtime (players, round...)
-│   │   ├── ActionPipeline.ts    # Xử lý hành động ban đêm theo trình tự
-│   │   ├── EventBus.ts          # Hệ thống sự kiện & phản ứng dây chuyền
-│   │   └── WinEvaluator.ts      # Kiểm tra điều kiện thắng/thua
-│   ├── roles/                   # 🎭 Danh sách vai trò (Plugin)
-│   │   ├── Role.ts              # Abstract Class cơ bản cho mọi role
-│   │   ├── Werewolf.ts, Seer.ts, Witch.ts, Guard.ts...
-│   ├── skills/                  # ⚡ Các module kỹ năng tái sử dụng
-│   │   ├── Skill.ts             # Abstract Class cho kỹ năng
-│   │   ├── AttackSkill.ts, ProtectSkill.ts, PotionSkill.ts...
-│   ├── gateway/                 # 🌐 Lớp giao tiếp mạng
-│   │   ├── SocketGateway.ts     # Xử lý toàn bộ logic flow qua Socket.IO
-│   │   └── RoomManager.ts       # Quản lý phòng chơi & gán Role
-│   └── types/                   # 📝 Định nghĩa kiểu dữ liệu & Enums
-├── client/
-│   ├── index.html               # Giao diện người dùng hiện đại
-│   ├── styles.css               # Hệ thống design system (Glassmorphism)
-│   ├── app.js                   # Logic xử lý Socket & UI tại client
-│   └── livekit.js               # (Mở rộng) Tích hợp Voice-chat
-└── package.json
-```
+### 🏆 Điều kiện Thắng (Win Conditions)
+Game tự động kiểm tra thắng/thua sau mỗi sự kiện chết hoặc sau khi treo cổ:
+1. **Phe Sói thắng**: Khi số lượng Sói CÒN SỐNG lớn hơn hoặc bằng (>=) số lượng người còn sống của tất cả các phe khác gộp lại.
+2. **Phe Dân thắng**: Khi toàn bộ Sói đã chết (Số lượng Sói = 0) và không có Phe thứ 3 nào đạt điều kiện thắng.
+3. **Phe Cặp Đôi thắng (Tình nhân)**: Nếu 2 người yêu nhau vẫn còn sống, VÀ trên sân chỉ còn tối đa 1 người khác (Tổng số người sống = 3 hoặc 2, trong đó có cặp đôi). Tình yêu vượt lên tất cả!
+4. **Kẻ Ngốc thắng (Jester)**: Nếu Thằng Hề (Jester) bị LÀNG BỎ PHIẾU TREO CỔ thành công vào ban ngày. Thằng Hề sẽ thắng một mình và game kết thúc ngay lập tức. (Lưu ý: Nếu Thằng hề chết trong đêm do Sói hoặc Phù Thủy, hắn sẽ thua ngậm ngùi).
 
 ---
 
-## 🔄 Luồng trò chơi (Automated Flow)
+## 🎭 Danh sách Vai trò (Roles & Skills)
 
-Hệ thống tự động chuyển đổi giữa các giai đoạn dựa trên bộ đếm thời gian (Timers) và hành động của người chơi:
-
-### 🌑 Ban đêm (Night Flow)
-Hành động được xử lý theo trình tự thời gian hoặc song song:
-1. **Lover Talk** — Cặp đôi tình nhân thảo luận riêng.
-2. **Independent Actions** — Bảo vệ, Tiên tri, Thần tình yêu thực hiện kỹ năng đồng thời.
-3. **Werewolf Vote** — Đàn sói thảo luận và thống nhất mục tiêu cắn.
-4. **Witch Action** — Phù thủy thấy nạn nhân, quyết định dùng thuốc cứu hoặc độc.
-5. **Hunter Setup** — Thợ săn chọn mục tiêu trả thù dự phòng.
-6. **Resolve Night** — Tổng hợp kết quả và công bố nạn nhân.
-
-### ☀️ Ban ngày (Day Flow)
-1. **Discussion & Voting** — Thảo luận công khai và bỏ phiếu tìm nghi phạm.
-2. **Confirm Hang** — Toàn bộ làng quyết định treo cổ hoặc tha bổng cho người bị nghi ngờ.
-3. **Check Win** — Kiểm tra xem phe nào đã giành chiến thắng.
-
----
-
-## 🎭 Hệ thống Vai trò & Kỹ năng
-
-Hiện tại engine đã tích hợp sẵn **10 vai trò** phổ biến:
-
-| Vai trò | Phe | Kỹ năng chính | Trigger |
+| Vai trò | Phe | Kỹ năng chính | Chi tiết cơ chế |
 |:---|:---:|:---|:---|
-| **Ma Sói** | Sói | `AttackSkill` | Ban đêm (Chủ động) |
-| **Dân Làng** | Dân | Không | — |
-| **Tiên Tri** | Dân | `InvestigateSkill` | Ban đêm (Chủ động) |
-| **Bảo Vệ** | Dân | `ProtectSkill` | Ban đêm (Chủ động) |
-| **Phù Thủy** | Dân | `PotionSkill` | Sau cắn (Phản ứng) |
-| **Thợ Săn** | Dân | `ShootSkill` | Khi chết (Phản ứng) |
-| **Thần Tình Yêu** | Dân | `CupidLinkSkill` | Đêm đầu (Chủ động) |
-| **Già Làng** | Dân | `ElderShieldSkill` | Khi bị cắn (Bị động) |
-| **Sói Nguyền** | Dân/Sói | `CursedTransformSkill`| Khi bị cắn (Biến đổi) |
-| **Thằng Ngốc** | Solo | `onDeath` | Khi bị treo cổ (Thắng) |
+| **Ma Sói** | Sói | Cắn người | Đêm thức dậy voice cùng đồng bọn, vote cắn 1 nạn nhân. |
+| **Dân Làng** | Dân | Nghỉ ngơi | Không có kỹ năng ban đêm. Dùng tài suy luận ban ngày. |
+| **Tiên Tri** | Dân | Soi phe | Soi 1 người để biết là `Sói` hay `Dân` (Cursed Wolf chưa biến hình soi ra Dân). |
+| **Bảo Vệ** | Dân | Tạo khiên | Khiên chặn 1 lượt cắn của Sói. Không chặn được Độc. |
+| **Phù Thủy** | Dân | Cứu / Độc | Thấy người bị Sói cắn. Có 1 bình Cứu và 1 bình Độc cho cả game. |
+| **Thợ Săn** | Dân | Bắn trả thù | Sẽ tự động ghim bắn mục tiêu đã chọn nếu bị giết. Mất skill nếu dính 2 skill giết cùng lúc. |
+| **Thần Tình Yêu**| Dân | Ghép đôi | Chỉ tác dụng đêm đầu. Cặp đôi có kênh Voice riêng, nếu 1 người chết người kia chết theo. |
+| **Già Làng** | Dân | Chống cắn | Bị động: Có 2 mạng khi Sói cắn. Không chống được Độc hoặc Treo cổ. |
+| **Sói Nguyền** | Dân/Sói | Hắc hóa | Bắt đầu là phe Dân. Nếu bị Sói cắn, sẽ KHÔNG CHẾT mà biến ngay thành Sói thuộc phe Sói. |
+| **Thằng Ngốc** | Solo | Chọc tức | Thắng game NGAY LẬP TỨC nếu lừa được Dân làng treo cổ mình vào ban ngày. |
+
+---
+
+## 🚀 Tính năng Nghệ Thuật (Technical Highlight)
+
+- **EventBus Chain Reaction System**: Xử lý rẽ nhánh đa luồng các hiệu ứng kỹ năng. Mũi tên rơi xuống, người chết, tình nhân tự tử theo, Thợ săn trăn trối ghim đạn vào người khác... tất cả được vận hành qua Queue Event chống Infinity Loop chuẩn xác.
+- **Smart Voice-Chat Matrix**: Sử dụng **LiveKit**, Micro và Loa của toàn bộ Client được Server bật / tắt trực tiếp tuỳ theo Phase. Có chống tiếng vọng (Echo Cancellation) và bảo mật Token JWT riêng biệt.
+- **Late-Join Handle**: Người chơi vô tình rớt mạng có thể F5 tự động vào lại phòng, khôi phục Phase với Voice đúng chuẩn. Người mới vào phòng giữa game sẽ tự động hóa thân thành "Thượng Đế", chỉ được quan sát mà không làm hỏng tiến trình game.
 
 ---
 
 ## ⚙️ Cài đặt & Khởi chạy
 
 ### Yêu cầu hệ thống
-- **Node.js**: phiên bản 18 trở lên.
-- **npm**: phiên bản 6 trở lên.
+- **Node.js**: Phiên bản 18+
+- **LiveKit Server**: Dùng cho Voice Chat (có thể dùng Cloud hoặc Self-host). Cần API_KEY, API_SECRET và URL.
 
-### Các bước thực hiện
+### Khởi chạy môi trường Dev
 1. **Clone repository:**
    ```bash
    git clone https://github.com/minhz99/Wolvesville-304.git
    cd Wolvesville-304
    ```
 
-2. **Cài đặt dependencies:**
+2. **Cài đặt thư viện:**
    ```bash
    npm install
    ```
 
-3. **Chạy server phát triển:**
+3. **Cấu hình Môi trường:** Tạo file `.env` theo form `.env.example` chứa thông tin LiveKit.
+
+4. **Chạy server:**
    ```bash
    npm run dev
    ```
 
-4. **Truy cập game:**
-   Mở trình duyệt và vào địa chỉ: `http://localhost:3000`
-
----
-
-## 🛡️ Nguyên tắc bảo mật & Hiệu năng
-- **Validation**: Mọi input từ client (chọn mục tiêu, bỏ phiếu) đều được validate thông qua trạng thái hiện tại của `GameEngine` và `RoomManager`.
-- **Visibility Control**: Server chỉ gửi thông tin vai trò cho những người chơi có quyền được biết (VD: Sói thấy đồng bọn, Tiên tri thấy kết quả soi).
-- **Modularization**: Code được chia nhỏ thành các Class và Module chuyên biệt, dễ dàng unit test và bảo trì.
+5. **Chơi game:**
+   Truy cập `http://localhost:3000` (Mở port trên điện thoại / nhiều tab để test). Engine sẽ tự auto-start game khi chủ phòng thiết lập xong Role.
