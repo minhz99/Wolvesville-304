@@ -156,8 +156,8 @@ export class RoomManager {
                 ready: false,
                 alive: !room.engine, // If game already running, they start dead (spectator)
                 lastSeen: Date.now(),
-                isMicMuted: false,
-                isSpeakerMuted: false,
+                isMicMuted: true, // User request: default mic muted
+                isSpeakerMuted: false, // Speakers on by default
                 online: true,
             });
         } else {
