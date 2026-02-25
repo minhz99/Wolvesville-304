@@ -59,6 +59,13 @@ export class RoomManager {
         this.startGarbageCollection();
     }
 
+    public destroy() {
+        if (this.gcInterval) {
+            clearInterval(this.gcInterval);
+            this.gcInterval = null;
+        }
+    }
+
     private startGarbageCollection() {
         if (this.gcInterval) clearInterval(this.gcInterval);
 
