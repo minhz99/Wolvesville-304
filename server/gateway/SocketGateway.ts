@@ -444,8 +444,10 @@ export class SocketGateway {
         // Thông báo cho Cupid: tên partner + role của partner
         this.pvtChat(roomId, cupidId, `💕 Người yêu của bạn: ${partnerPlayer.name} (${partnerRoleName})`, '💕');
 
-        // Thông báo cho Partner: được chọn làm tình nhân + tên Cupid
-        this.pvtChat(roomId, partnerId, `💕 Cupid (${cupidPlayer.name}) đã chọn bạn làm Tình Nhân!`, '💕');
+        // Thông báo cho Partner: được chọn làm tình nhân + tên Cupid + role Cupid
+        const cupidEnginePlayer = room.engine.state.players.find(p => p.id === cupidId);
+        const cupidRoleName = cupidEnginePlayer?.role?.displayName || cupidEnginePlayer?.role?.name || 'Không rõ';
+        this.pvtChat(roomId, partnerId, `💕 ${cupidPlayer.name} (${cupidRoleName}) đã chọn bạn làm Tình Nhân!`, '💕');
 
         // Gửi role visibility để cả 2 thấy role của nhau
         this.emitTo(cupidId, 'role_visibility', { knownRoles: room.engine.buildRoleVisibility(cupidId) });

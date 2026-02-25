@@ -213,13 +213,15 @@ describe('Roles and Skills', () => {
     });
 
     describe('Guard (additional)', () => {
-        it('should NOT allow guard to protect themselves', () => {
+        it('should allow guard to protect themselves', () => {
             const guardRole = new Guard();
             const source: Player = { id: 'guard', alive: true, role: guardRole };
             const context = createMockContext([source]);
 
             const events = guardRole.onAction(context, source, { targetId: 'guard' });
-            expect(events).toHaveLength(0);
+            expect(events).toHaveLength(1);
+            expect(events[0].type).toBe('PROTECT_SET');
+            expect(events[0].target).toBe(source);
         });
 
         it('should NOT allow protecting the same player twice in a row', () => {
