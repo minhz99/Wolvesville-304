@@ -36,10 +36,14 @@ export class ActionPipeline {
             if (!action.player.alive) continue; // died during resolution
 
             if (action.player.role && action.player.role.onAction) {
-                // Collect immediate events resulting from the action
-                const events = action.player.role.onAction(this.context, action.player, action.input);
-                if (events && events.length > 0) {
-                    collectedEvents.push(...events);
+                try {
+                    // Collect immediate events resulting from the action
+                    const events = action.player.role.onAction(this.context, action.player, action.input);
+                    if (events && events.length > 0) {
+                        collectedEvents.push(...events);
+                    }
+                } catch (error) {
+                    console.error(`[ActionPipeline] Error executing action for player ${action.player.id} (${action.player.role?.name}):`, error);
                 }
             }
         }
