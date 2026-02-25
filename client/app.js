@@ -552,6 +552,11 @@ function selectTarget(id) {
         state.selectedTarget = null;
         document.querySelectorAll('.target-card').forEach(c => c.classList.remove('selected'));
         showToast('❌ Đã hủy chọn', 1500);
+
+        // Hủy chọn trên server để autoRandom có thể hoạt động nếu hết giờ
+        if (state.currentActionMode === 'night_role') {
+            socket.emit('night_action', { roomId: state.roomId, input: null });
+        }
         return;
     }
 
