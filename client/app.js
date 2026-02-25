@@ -892,8 +892,8 @@ socket.on('phase_change', (data) => {
         if (overlay) overlay.classList.add('anim-to-night');
         // Clear action area khi vào đêm (chỉ cho người sống)
         if (isPlayerAlive()) {
-            els.actionTitle.textContent = '🌙 Đêm đang đến...';
-            els.targetGrid.innerHTML = '<div class="chat-msg chat-system">Chờ lượt của bạn...</div>';
+            const allAlive = state.players.filter(p => p.alive !== false);
+            showNightWaitingUI({ players: allAlive }, '🌙 Đêm đang đến...');
         }
     } else if (data.phase.includes('DEFENSE')) {
         phaseEl.classList.add('phase-vote');
@@ -1037,8 +1037,12 @@ socket.on('role_visibility', (data) => {
     state.knownRoles = data.knownRoles || {};
     renderPlayers(); // Re-render with visible role tags
 
-    // Nếu đang ở giao diện chờ, re-render để hiện role mới
-    if (state.currentActionMode === 'idle' && state.phase.includes('NIGHT')) {
+    // Nếu đã chết, re-render giao diện thượng đế
+    if (!isPlayerAlive()) {
+        renderDeadPlayerView();
+    }
+    // Nếu đang ở giao diện chờ (người sống), re-render để hiện role mới
+    else if (state.currentActionMode === 'idle' && state.phase.includes('NIGHT')) {
         const allAlive = state.players.filter(p => p.alive !== false);
         showNightWaitingUI({ players: allAlive }, els.actionTitle.textContent);
     }
