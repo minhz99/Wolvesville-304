@@ -28,7 +28,7 @@ const state = {
     config: null,
     // Voice state
     voiceState: null, // { canSpeak, canHear, deafTo, phase }
-    isMicMuted: false,   // Manual local mic state
+    isMicMuted: true,   // Manual local mic state (muted by default as requested)
     isSpeakerMuted: false, // Manual local speaker state
 };
 
@@ -767,6 +767,11 @@ socket.on('room_joined', (data) => {
 
     // Lưu session để reload có thể tự vào lại
     Storage.saveSession(data.roomId, state.playerName, data.playerId);
+
+    // Default mic muted sync (User request)
+    [els.btnToggleMic, els.btnToggleMicGame].forEach(b => {
+        if (b) b.classList.toggle('muted', state.isMicMuted);
+    });
 
     // Đồng bộ cấu hình từ server (nếu có)
     if (data.roleConfig) {
