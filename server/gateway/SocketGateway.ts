@@ -359,6 +359,11 @@ export class SocketGateway {
         const guard = room.players.find(p => p.roleName === 'Guard' && p.alive);
         const seer = room.players.find(p => p.roleName === 'Seer' && p.alive);
 
+        if (!guard && !seer) {
+            this.nightPhaseWolves(roomId);
+            return;
+        }
+
         if (guard) this.emitTo(guard.id, 'night_action_request', { players: alive, actionTitle: 'Chọn người bảo vệ (không lặp 2 đêm)', timeLimit: config.timers.nightAction });
         if (seer) {
             const hist = room.engine.getSeerHistory(seer.id);
@@ -453,6 +458,10 @@ export class SocketGateway {
         ns.wolfVotes = {};
         const config = room.engine.state.config;
         const wolves = room.players.filter(p => p.roleName === 'Werewolf' && p.alive);
+        if (wolves.length === 0) {
+            this.nightPhaseWitch(roomId);
+            return;
+        }
         // Sói có thể chọn bất kỳ ai còn sống, bao gồm cả sói khác (tự cắn bản thân)
         const targets = room.players.filter(p => p.alive).map(p => ({ id: p.id, name: p.name, alive: p.alive }));
 
