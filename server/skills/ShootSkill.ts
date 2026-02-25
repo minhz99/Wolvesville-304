@@ -1,5 +1,5 @@
 import { Skill } from './Skill';
-import { GameContext, GameEvent, Player } from '../types/GameTypes';
+import { GameContext, GameEvent, GamePhase, Player } from '../types/GameTypes';
 
 /**
  * ShootSkill — Used by Hunter.
@@ -13,6 +13,12 @@ export class ShootSkill extends Skill {
 
     private revengeTargetId: string | null = null;
     private canShoot: boolean = true;
+
+    onPhaseStart(ctx: GameContext): void {
+        if (ctx.phase === GamePhase.NIGHT_INIT) {
+            this.canShoot = true; // Reset each night
+        }
+    }
 
     use(ctx: GameContext, source: Player, input?: { targetId: string }): GameEvent[] {
         if (!input?.targetId) return [];

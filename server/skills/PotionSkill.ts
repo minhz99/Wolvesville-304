@@ -6,6 +6,7 @@ export class PotionSkill extends Skill {
 
     private hasHealPotion = true;
     private hasPoisonPotion = true;
+    private healedPlayerId: string | null = null;
 
     use(ctx: GameContext, source: Player, input?: { healTargetId?: string, poisonTargetId?: string }): GameEvent[] {
         const events: GameEvent[] = [];
@@ -15,6 +16,7 @@ export class PotionSkill extends Skill {
             const target = ctx.getPlayer(input.healTargetId);
             if (target) {
                 this.hasHealPotion = false;
+                this.healedPlayerId = target.id;
                 events.push({
                     type: 'HEAL_POTION_USED',
                     source: source,
@@ -38,5 +40,19 @@ export class PotionSkill extends Skill {
         }
 
         return events;
+    }
+
+    onEvent(ctx: GameContext, player: Player, event: GameEvent): GameEvent[] {
+        // Cancel ATTEMPT_KILL on the healed player
+        if (event.type === 'ATTEMPT_KILL' && this.healedPlayerId && event.target?.id === this.healedPlayerId) {
+            event.metadata = { ...event.metadata, cancelled: true };
+            this.healedPlayerId = null;
+            return [{
+                type: 'HEAL_SUCCESS',
+                source: player,
+                target: event.target
+            }];
+        }
+        return [];
     }
 }

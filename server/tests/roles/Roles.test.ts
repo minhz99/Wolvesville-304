@@ -211,5 +211,81 @@ describe('Roles and Skills', () => {
             expect(events[0].target).toBe(target);
         });
     });
+
+    describe('Guard (additional)', () => {
+        it('should NOT allow guard to protect themselves', () => {
+            const guardRole = new Guard();
+            const source: Player = { id: 'guard', alive: true, role: guardRole };
+            const context = createMockContext([source]);
+
+            const events = guardRole.onAction(context, source, { targetId: 'guard' });
+            expect(events).toHaveLength(0);
+        });
+
+        it('should NOT allow protecting the same player twice in a row', () => {
+            const guardRole = new Guard();
+            const source: Player = { id: 'guard', alive: true, role: guardRole };
+            const target: Player = { id: 'A', alive: true, role: { team: 'VILLAGER' } };
+            const context = createMockContext([source, target]);
+
+            // First night: protect A
+            guardRole.onAction(context, source, { targetId: 'A' });
+
+            // Simulate new night
+            (context as any).phase = GamePhase.NIGHT_INIT;
+            guardRole.onPhaseStart!(context);
+
+            // Second night: try to protect A again → should throw
+            expect(() => guardRole.onAction(context, source, { targetId: 'A' }))
+                .toThrow('Cannot protect the same player twice in a row');
+        });
+    });
+
+    describe('Witch (additional)', () => {
+        it('should be able to use heal and poison independently across turns', () => {
+            const witchRole = new Witch();
+            const source: Player = { id: 'witch', alive: true, role: witchRole };
+            const targetA: Player = { id: 'A', alive: true, role: { team: 'VILLAGER' } };
+            const targetB: Player = { id: 'B', alive: true, role: { team: 'WEREWOLF' } };
+            const context = createMockContext([source, targetA, targetB]);
+
+            // Use only heal
+            const eventsHeal = witchRole.onAction(context, source, { healTargetId: 'A' });
+            expect(eventsHeal).toHaveLength(1);
+            expect(eventsHeal[0].type).toBe('HEAL_POTION_USED');
+
+            // Heal used up, but poison still available
+            const eventsPoison = witchRole.onAction(context, source, { poisonTargetId: 'B' });
+            expect(eventsPoison).toHaveLength(1);
+            expect(eventsPoison[0].type).toBe('PLAYER_DEATH');
+            expect(eventsPoison[0].metadata.reason).toBe('POISON');
+
+            // Both used up
+            const eventsEmpty = witchRole.onAction(context, source, { healTargetId: 'A', poisonTargetId: 'B' });
+            expect(eventsEmpty).toHaveLength(0);
+        });
+    });
+
+    describe('CursedWolf (additional)', () => {
+        it('should NOT transform when attacked by hunter shot', () => {
+            const cursedRole = new CursedWolf();
+            const transformSkill = cursedRole.skills.find(s => s.name === 'CursedTransform') as any;
+            const source: Player = { id: 'cursed', alive: true, role: cursedRole };
+            const hunter: Player = { id: 'hunter', alive: true, role: { team: 'VILLAGER', name: 'Hunter' } };
+            const context = createMockContext([source, hunter]);
+
+            const event: GameEvent = {
+                type: 'ATTEMPT_KILL',
+                source: hunter,
+                target: source,
+                metadata: { reason: 'HUNTER_SHOT' }
+            };
+
+            const events = transformSkill.onEvent(context, source, event);
+            expect(events).toHaveLength(0);
+            expect(source.role.team).toBe('VILLAGER'); // Still villager
+        });
+    });
 });
+
 

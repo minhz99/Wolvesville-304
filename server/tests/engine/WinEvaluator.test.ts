@@ -54,8 +54,19 @@ describe('WinEvaluator', () => {
     });
 
     it('should return LOVER when lovers are alive and only 1 other person max is alive', () => {
+        // Lover win is now handled by Cupid's role-specific checkWinCondition (via CupidLinkSkill)
+        // Mock the Cupid role with a checkWinCondition that returns 'LOVER' when conditions match
         const players: Player[] = [
-            { id: '1', alive: true, role: { team: 'VILLAGER' } }, // Cupid/Lover 1
+            {
+                id: '1', alive: true, role: {
+                    team: 'VILLAGER',
+                    checkWinCondition: (ctx: any) => {
+                        const alive = ctx.getAlivePlayers();
+                        if (alive.length <= 3) return 'LOVER';
+                        return null;
+                    }
+                }
+            }, // Cupid/Lover 1
             { id: '2', alive: true, role: { team: 'WEREWOLF' } }, // Lover 2
             { id: '3', alive: true, role: { team: 'VILLAGER' } }, // Other
             { id: '4', alive: false, role: { team: 'VILLAGER' } } // Dead

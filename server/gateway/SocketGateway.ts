@@ -625,11 +625,6 @@ export class SocketGateway {
         ds.timerId = setTimeout(() => this.resolveDayVote(roomId), totalTime * 1000);
     }
 
-    // Giữ lại startDayVoting cho backward compatibility nhưng không còn được gọi riêng
-    private startDayVoting(roomId: string): void {
-        // Đã gộp vào startDayDiscussion, hàm này không còn được sử dụng
-        this.startDayDiscussion(roomId);
-    }
 
     private resolveDayVote(roomId: string): void {
         const room = this.roomManager.getRoom(roomId);
@@ -1104,8 +1099,10 @@ export class SocketGateway {
             this.broadcastVisibility(roomId);
             this.broadcastPlayerList(roomId); // Broadcast list after ready=false
 
+            this.witchPotionState.delete(roomId);
+
             // Xoá engine để cho phép game mới bắt đầu trên cùng một room
-            room.engine = undefined;
+            room.engine = null;
             // Restore lobby chat
             this.broadcastVoiceState(roomId, 'LOBBY');
 

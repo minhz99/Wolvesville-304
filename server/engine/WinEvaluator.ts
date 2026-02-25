@@ -39,20 +39,8 @@ export class WinEvaluator {
             return 'WEREWOLF'; // Wolves equal or outnumber the rest
         }
 
-        // Lover win check
-        const loverIds = context.getLoverIds();
-        if (loverIds) {
-            const { cupidId, partnerId } = loverIds;
-            const cupidAlive = alivePlayers.find(p => p.id === cupidId);
-            const partnerAlive = alivePlayers.find(p => p.id === partnerId);
-
-            // If both lovers are alive, and there is at most 1 other person alive
-            if (cupidAlive && partnerAlive && alivePlayers.length <= 3) {
-                // Determine if we should prioritize LOVER win over WEREWOLF win.
-                // Usually, if lovers are the only ones left (or 1 other person), lovers win.
-                return 'LOVER';
-            }
-        }
+        // LOVER win is handled by Cupid.checkWinCondition() via CupidLinkSkill.checkLoverWin()
+        // which runs in the role-specific loop above (line 15-19). No duplicate check needed here.
 
         return null; // Game continues
     }

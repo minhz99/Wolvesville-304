@@ -17,6 +17,9 @@ export class ProtectSkill extends Skill {
     use(ctx: GameContext, source: Player, input?: { targetId: string }): GameEvent[] {
         if (!input?.targetId) return [];
 
+        // Guard cannot protect themselves
+        if (input.targetId === source.id) return [];
+
         if (input.targetId === this.lastProtectedPlayerId) {
             throw new Error('Cannot protect the same player twice in a row');
         }
